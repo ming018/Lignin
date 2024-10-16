@@ -23,7 +23,8 @@ import TGA.TGA_evaluate
 
 
 if __name__ == '__main__' :
-    condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+    # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+    condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
 
 
     # cat = input('촉매 입력 No Pt/C Ru/C Raney Ni ')

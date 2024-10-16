@@ -91,7 +91,8 @@ def load_TGA(directory_path, cut_off):
             file_path = os.path.join(directory_path, file)
             df = pd.read_excel(file_path, sheet_name=1, skiprows=3, header=None)  # 두 번째 시트 읽기, 첫 3행 건너뛰기
             # df에서 2, 3, 4 번째 열만 추출
-            df_filtered = df[[2, 3, 4]]
+            df_filtered = df[[1, 3, 4]]
+            df_filtered = df_filtered[(df_filtered[1] >= 40) & (df_filtered[1] < 800)]
 
             file_data = df_filtered
             print(f"Saving data to {npy_file_path}")
