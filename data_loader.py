@@ -99,7 +99,7 @@ def load_TGA(directory_path, cut_off):
             save_data_as_npy(file_data, npy_file_path)
 
         # 데이터를 리스트에 추가
-        data.append(file_data)
+        data.append(file_data.T)
 
     # 파일명을 기준으로 데이터를 정렬 (숫자 부분을 기준으로)
     # data.sort(key=lambda x: int(x[0].split('.')[0]))
