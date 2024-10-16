@@ -3,6 +3,7 @@ import pandas as pd
 import PyPDF2
 import re
 import os
+import numpy as np
 
 ROOT_DIR = 'dataset/'
 
@@ -49,13 +50,21 @@ def load_FTIR(directory_path, cut_off):
 
 
 
+def save_data_as_npy(data, npy_file_path):
+    # 데이터를 npy 파일로 저장
+    np.save(npy_file_path, data)
+
+def load_data_from_npy(npy_file_path):
+    # npy 파일로부터 데이터를 로드
+    return np.load(npy_file_path, allow_pickle=True)
+
 def load_TGA(directory_path, cut_off):
     """
-    지정된 디렉토리 내의 모든 XLS 및 XLSX 파일에서 두 번째 시트의 4번째 행부터 마지막 행까지의 데이터를 추출합니다.
+    TGA 데이터를 로드하여 각 파일을 npy 파일로 저장하거나 npy 파일이 있을 경우 이를 로드합니다.
 
     :param directory_path: XLS 및 XLSX 파일들이 있는 디렉토리 경로
     :param cut_off: 컷오프 값을 기준으로 파일 필터링
-    :return: 각 파일의 두 번째 시트의 4번째 행부터 마지막 행까지의 데이터를 포함하는 리스트
+    :return: 각 파일의 데이터를 포함하는 리스트
     """
     # 디렉토리 내의 모든 XLS 및 XLSX 파일 목록 가져오기
     xls_files = [f for f in os.listdir(directory_path) if f.endswith('.xls') or f.endswith('.xlsx')]
@@ -63,17 +72,36 @@ def load_TGA(directory_path, cut_off):
     # 컷오프 값을 기준으로 파일들 필터링
     valid_files = [f for f in xls_files if int(f.split('.')[0]) < cut_off]
 
-    # 각 파일의 두 번째 시트의 4번째 행부터 마지막 행까지의 데이터를 저장할 리스트
+    valid_files.sort(key=extract_numbers)
+
+    # 각 파일의 데이터를 저장할 리스트
     data = []
 
-    # 각 XLS 파일을 읽어서 두 번째 시트의 4번째 행부터 마지막 행까지의 데이터를 가져오기
+    # 각 파일을 처리하고 npy 파일로 저장/로드
     for file in valid_files:
-        file_path = os.path.join(directory_path, file)
-        df = pd.read_excel(file_path, sheet_name=1, skiprows=3, header=None)  # 두 번째 시트 읽기, 첫 3행 건너뛰기
-        data.append((file, df))
+        file_name_without_ext = os.path.splitext(file)[0]  # 확장자 없는 파일명
+        npy_file_path = os.path.join(directory_path, f"{file_name_without_ext}.npy")  # npy 파일 경로
+
+        if os.path.exists(npy_file_path):
+            # npy 파일이 존재하면 이를 로드하여 추가
+            print(f"Loading data from {npy_file_path}")
+            file_data = load_data_from_npy(npy_file_path)
+        else:
+            # npy 파일이 없으면 엑셀 파일을 읽고 저장
+            file_path = os.path.join(directory_path, file)
+            df = pd.read_excel(file_path, sheet_name=1, skiprows=3, header=None)  # 두 번째 시트 읽기, 첫 3행 건너뛰기
+            # df에서 2, 3, 4 번째 열만 추출
+            df_filtered = df[[2, 3, 4]]
+
+            file_data = df_filtered
+            print(f"Saving data to {npy_file_path}")
+            save_data_as_npy(file_data, npy_file_path)
+
+        # 데이터를 리스트에 추가
+        data.append(file_data)
 
     # 파일명을 기준으로 데이터를 정렬 (숫자 부분을 기준으로)
-    data.sort(key=lambda x: int(x[0].split('.')[0]))
+    # data.sort(key=lambda x: int(x[0].split('.')[0]))
 
     return data
 
@@ -141,3 +169,5 @@ def load_data(root_dir, data_type=None):
         return condition_data, TGA_data, FTIR_data, GCMS_data
 
 
+if __name__ == '__main__' :
+    load_data(ROOT_DIR, data_type='TGA')
