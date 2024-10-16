@@ -119,12 +119,25 @@ def load_GCMS(file_path, start_page=6):
 
     return txt
 
-def load_data(root_dir):
+def load_data(root_dir, data_type=None):
+    # 공통적으로 사용하는 condition_data는 항상 로드
     condition_data = read_condition_file(os.path.join(root_dir, "train.xlsx"))
-    TGA_data = load_TGA(os.path.join(root_dir, "TGA"), cut_off=condition_data['number'].max() + 1)
-    FTIR_data = load_FTIR(os.path.join(root_dir, "FT-IR"), cut_off=condition_data['number'].max() + 1)
-    GCMS_data = load_GCMS(os.path.join(root_dir, "GC-MS.pdf"))
-    return condition_data, TGA_data, FTIR_data, GCMS_data
 
+    # 선택한 data_type에 따라 필요한 데이터만 로드
+    if data_type == 'TGA':
+        TGA_data = load_TGA(os.path.join(root_dir, "TGA"), cut_off=condition_data['number'].max() + 1)
+        return condition_data, TGA_data
+    elif data_type == 'FTIR':
+        FTIR_data = load_FTIR(os.path.join(root_dir, "FT-IR"), cut_off=condition_data['number'].max() + 1)
+        return condition_data, FTIR_data
+    elif data_type == 'GCMS':
+        GCMS_data = load_GCMS(os.path.join(root_dir, "GC-MS.pdf"))
+        return condition_data, GCMS_data
+    else:
+        # 모든 데이터를 반환해야 할 경우에만 필요한 데이터 로드
+        TGA_data = load_TGA(os.path.join(root_dir, "TGA"), cut_off=condition_data['number'].max() + 1)
+        FTIR_data = load_FTIR(os.path.join(root_dir, "FT-IR"), cut_off=condition_data['number'].max() + 1)
+        GCMS_data = load_GCMS(os.path.join(root_dir, "GC-MS.pdf"))
+        return condition_data, TGA_data, FTIR_data, GCMS_data
 
 
