@@ -1,11 +1,18 @@
 import pandas as pd
+import torch
+from matplotlib import pyplot as plt
+from torch import nn
+from torch.utils.data import DataLoader
+
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
+from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
 from utill import FTIR_ImageMaker
 import data_loader
 import GCMS_to_xls
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
+from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
 
 # 0 Time
 # 1 Temperature
@@ -53,6 +60,70 @@ if __name__ == '__main__' :
 
         # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
         data_for_return, temp1, temp2 = group.process_group_for_TGA(TGA_data, cat, target_temp)
+        data = [reduce_by_temperature(data) for data in data_for_return]
+        data = [interpolate_temperature(d, 40, 800) for d in data]
+        data = [reduce_to_one_degree_interval(d) for d in data]
+
+        # plt.plot(data[0][0],data[0][2])
+        # plt.plot(data[1][0],data[1][2])
+        plt.plot(data[2][0],data[2][2])
+        plt.plot(data[3][0],data[3][2])
+        # plt.show()
+
+        temperature_data = torch.tensor([[250],[300],[350],[400]],dtype=torch.float).to('cuda')
+        byproduct_data = torch.tensor(data,dtype=torch.float).to('cuda')
+
+        # Dataset 및 DataLoader 생성
+        batch_size = 16
+        dataset = ByproductDataset(temperature_data, byproduct_data)
+        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        model = ByproductPredictorCNN(1, 761)
+        model.to('cuda')
+        criterion = nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+        epochs = 1000  # 예시로 10 에포크로 설정
+        for epoch in range(epochs):
+            model.train()
+            running_loss = 0.0
+
+            for i, (temperatures, byproducts) in enumerate(dataloader):
+                # 데이터 배치 처리
+                temperatures = temperatures.unsqueeze(1)  # (batch_size, 1, input_size)로 변환 (CNN 입력 요구 형태)
+
+                # 순전파(forward) 계산
+                outputs = model(temperatures)
+                loss = criterion(outputs, byproducts[:,2,:])
+
+                # 역전파(backward) 및 최적화
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+                # 손실 누적
+                running_loss += loss.item()
+            # 에포크마다 평균 손실 출력
+            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {running_loss / len(dataloader):.4f}")
+
+        model.eval()
+        with torch.no_grad():
+            new_temperatures =  torch.tensor([[260],[320],[370],[420]],dtype=torch.float).to('cuda')
+            new_temperatures = new_temperatures.unsqueeze(1)
+            predicted_byproducts = model(new_temperatures)
+            # print("Predicted byproducts for new temperatures:")
+            # print(predicted_byproducts)
+
+        predicted_byproducts = predicted_byproducts.detach().cpu().numpy()
+        # for x in predicted_byproducts:
+        #     plt.plot(data[0][0],x)
+        plt.plot(data[0][0],predicted_byproducts[2])
+        plt.show()
+
+        plt.plot(data[0][0], predicted_byproducts[2])
+        plt.show()
+
+
         start_temp = 250 + 50 * temp1
         limit_temp = 250 + 50 * temp2
 
