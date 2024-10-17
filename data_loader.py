@@ -14,41 +14,6 @@ def extract_numbers(file_name):
     """
     return list(map(int, re.findall(r'\d+', file_name)))
 
-def load_FTIR(directory_path, cut_off):
-    """
-    지정된 디렉토리 내의 모든 CSV 파일에서 20번째 행부터 숫자가 있는 동안의 데이터를 추출합니다.
-
-    :param cut_off: 파일 이름의 숫자 부분이 이 값보다 작은 파일들만 처리
-    :param directory_path: CSV 파일들이 있는 디렉토리 경로
-    :return: 각 파일의 20번째 행부터 숫자가 있는 동안의 데이터를 포함하는 리스트
-    """
-    # 디렉토리 내의 모든 CSV 파일 목록 가져오기
-    csv_files = [f for f in os.listdir(directory_path) if f.endswith('.csv')]
-
-    # 숫자1이 cut_off 값보다 작은 파일들 필터링
-    valid_files = [f for f in csv_files if int(f.split('-')[0]) < cut_off]
-
-    # 파일 이름의 숫자 부분을 기준으로 정렬
-    valid_files.sort(key=extract_numbers)
-
-    # 각 파일의 20번째 행부터 숫자가 있는 동안의 데이터를 저장할 리스트
-    data = []
-
-    # 각 CSV 파일을 읽어서 20번째 행부터 숫자가 있는 동안의 데이터를 가져오기
-    for file in valid_files:
-        file_path = os.path.join(directory_path, file)
-        df = pd.read_csv(file_path, header=None)  # header=None으로 설정하여 첫 행을 헤더로 사용하지 않음
-        if len(df) >= 20:
-            data_from_20th_row = df.iloc[19:]  # 20번째 행부터 모든 데이터 가져오기
-            valid_data = data_from_20th_row[pd.to_numeric(data_from_20th_row[0], errors='coerce').notnull() &
-                                            pd.to_numeric(data_from_20th_row[1], errors='coerce').notnull()]
-            data.append((file, valid_data))
-        else:
-            data.append((file, pd.DataFrame()))  # 파일에 20번째 행이 없는 경우 빈 DataFrame으로 표시
-
-    return data
-
-
 
 def save_data_as_npy(data, npy_file_path):
     # 데이터를 npy 파일로 저장
@@ -113,7 +78,7 @@ def load_FTIR(directory_path, cut_off, npy_path=None):
             save_data_as_npy(file_data,npy_file_path)
 
         # 데이터를 리스트에 추가
-        data.append(file_data)
+        data.append(file_data.T)
 
     return data
 

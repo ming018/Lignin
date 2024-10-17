@@ -75,8 +75,8 @@ if __name__ == '__main__' :
     # target_temp = int(input('온도 입력 250 ~ 400'))
     target_temp = 275
 
-    TGA_bool = True
-    FTIR_bool = False
+    TGA_bool = False
+    FTIR_bool = True
     GCMS_bool = False
 
     if TGA_bool :
