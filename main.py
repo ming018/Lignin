@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
+from TGA_dl import process_TGA_data, load_model, prepare_dataloader, train_model, evaluate_model, smooth_data
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
@@ -30,6 +31,38 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 11 Round_K
 # 12 Round_G == C
 
+def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new_model=True):
+    # 여러 보간 방법들을 비교 TF
+    compare_interpolate_methods = False
+
+    # 보간 진행 T/F
+    TGA_interpolation = False
+
+    # 특정 데이터 평가 T/F
+    interpolated_data_evaluate = False
+
+    # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
+    data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
+    # 모델 정의
+    model = ByproductPredictorCNN(1, 761)
+
+    # 이미 학습된 모델이 있는 경우 로드, 없으면 학습
+    if not load_model(model, model_path) and train_new_model:
+        # 데이터로부터 DataLoader 준비
+        dataloader = prepare_dataloader(data)
+
+        # 모델 학습
+        train_model(model, dataloader, model_path)
+
+    # 모델 평가
+    predicted_byproducts = evaluate_model(model)
+
+    # Gaussian smoothing 적용
+    predicted_byproducts_smoothed = smooth_data(predicted_byproducts, sigma=2)
+
+    return predicted_byproducts_smoothed
+
+
 
 if __name__ == '__main__' :
     # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
@@ -47,112 +80,7 @@ if __name__ == '__main__' :
     GCMS_bool = False
 
     if TGA_bool :
-        # Interpolated_TGA 데이터 보간 및 보간된 데이터 평가
-        # 저장 위치, dataset/train/Interpolated_TGA/
-        # 시간, 기기온도, 무게%, 무게 변화율만 추출
-
-        # 여러 보간 방법들을 비교 TF
-        compare_interpolate_methods = False
-
-        # 보간 진행 T/F
-        TGA_interpolation = False
-
-        # 특정 데이터 평가 T/F
-        interpolated_data_evaluate = False
-
-        # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
-        data_for_return, temp1, temp2 = group.process_group_for_TGA(TGA_data, cat, target_temp)
-        data = [reduce_by_temperature(data) for data in data_for_return]
-        data = [interpolate_temperature(d, 40, 800) for d in data]
-        data = [reduce_to_one_degree_interval(d) for d in data]
-
-        # plt.plot(data[0][0],data[0][2])
-        # plt.plot(data[1][0],data[1][2])
-        plt.plot(data[2][0],data[2][2])
-        plt.plot(data[3][0],data[3][2])
-        # plt.show()
-
-        temperature_data = torch.tensor([[250],[300],[350],[400]],dtype=torch.float).to('cuda')
-        byproduct_data = torch.tensor(data,dtype=torch.float).to('cuda')
-
-        # Dataset 및 DataLoader 생성
-        batch_size = 16
-        dataset = ByproductDataset(temperature_data, byproduct_data)
-        dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-        model = ByproductPredictorCNN(1, 761)
-        model.to('cuda')
-        criterion = nn.MSELoss()
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-        epochs = 10000  # 예시로 10 에포크로 설정
-        for epoch in range(epochs):
-            model.train()
-            running_loss = 0.0
-
-            for i, (temperatures, byproducts) in enumerate(dataloader):
-                # 데이터 배치 처리
-                temperatures = temperatures.unsqueeze(1)  # (batch_size, 1, input_size)로 변환 (CNN 입력 요구 형태)
-
-                # 순전파(forward) 계산
-                outputs = model(temperatures)
-                loss = criterion(outputs, byproducts[:,2,:])
-
-                # 역전파(backward) 및 최적화
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                # 손실 누적
-                running_loss += loss.item()
-            # 에포크마다 평균 손실 출력
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {running_loss / len(dataloader):.4f}")
-
-        model.eval()
-        with torch.no_grad():
-            new_temperatures =  torch.tensor([[260],[320],[370],[420]],dtype=torch.float).to('cuda')
-            new_temperatures = new_temperatures.unsqueeze(1)
-            predicted_byproducts = model(new_temperatures)
-            # print("Predicted byproducts for new temperatures:")
-            # print(predicted_byproducts)
-
-        predicted_byproducts = predicted_byproducts.detach().cpu().numpy()
-
-        # predicted_byproducts 각 행에 Gaussian smoothing 적용
-        sigma = 2  # 스무딩 강도 조절
-        predicted_byproducts_smoothed_gaussian = np.array(
-            [gaussian_smooth_data(byproduct, sigma) for byproduct in predicted_byproducts])
-
-        # for x in predicted_byproducts:
-        #     plt.plot(data[0][0],x)
-        plt.plot(data[0][0],predicted_byproducts_smoothed_gaussian[2])
-        plt.show()
-
-        plt.plot(data[0][0], predicted_byproducts_smoothed_gaussian[2])
-        plt.show()
-
-
-        start_temp = 250 + 50 * temp1
-        limit_temp = 250 + 50 * temp2
-
-        if compare_interpolate_methods :
-            TGA_compare_interpolations.compare_main(data_for_return[temp1], data_for_return[temp1])
-
-        if TGA_interpolation :
-            TGA_interpolate.interpolate(data_for_return, temp1, temp2)
-
-        if interpolated_data_evaluate :
-            df = pd.read_csv(f"dataset/Interpolated_TGA/predict_{cat}_{target_temp}.csv")
-            predict_data = df['Deriv. Weight']
-
-            TGA.TGA_evaluate.TGA_evaluate(target_temp, cat, data_for_return[temp1], data_for_return, predict_data, start_temp, limit_temp)
-
-
-        # 학습 함수 적용, 수정 필요
-        TGA_RandomForest.TGA_RF(only_predict=True)
-
-
-
+        augmented_data = TGA_augmentation(TGA_data, cat, target_temp)
     elif FTIR_bool :
 
         # 모든 함수에서 경로 변경이 필요
