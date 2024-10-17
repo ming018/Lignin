@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
@@ -7,6 +8,7 @@ from torch.utils.data import DataLoader
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
+from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
 import data_loader
 import GCMS_to_xls
@@ -83,7 +85,7 @@ if __name__ == '__main__' :
         criterion = nn.MSELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-        epochs = 1000  # 예시로 10 에포크로 설정
+        epochs = 10000  # 예시로 10 에포크로 설정
         for epoch in range(epochs):
             model.train()
             running_loss = 0.0
@@ -115,12 +117,18 @@ if __name__ == '__main__' :
             # print(predicted_byproducts)
 
         predicted_byproducts = predicted_byproducts.detach().cpu().numpy()
+
+        # predicted_byproducts 각 행에 Gaussian smoothing 적용
+        sigma = 2  # 스무딩 강도 조절
+        predicted_byproducts_smoothed_gaussian = np.array(
+            [gaussian_smooth_data(byproduct, sigma) for byproduct in predicted_byproducts])
+
         # for x in predicted_byproducts:
         #     plt.plot(data[0][0],x)
-        plt.plot(data[0][0],predicted_byproducts[2])
+        plt.plot(data[0][0],predicted_byproducts_smoothed_gaussian[2])
         plt.show()
 
-        plt.plot(data[0][0], predicted_byproducts[2])
+        plt.plot(data[0][0], predicted_byproducts_smoothed_gaussian[2])
         plt.show()
 
 
