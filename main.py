@@ -4,6 +4,7 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn
 from torch.utils.data import DataLoader
+import os
 
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
@@ -98,30 +99,7 @@ if __name__ == '__main__' :
 
     elif GCMS_bool :
 
-        # GCMS 파일에서 Bold된 글자들을 엑셀파일로 저장
-        # dataset/GC-MS_to_xls/*.xls
+        # 추출 파일이 없는 경우 추출을 진행
+        if os.path.exists('dataset/GC-MS_to_xls/16.xls'):
+            GCMS_to_xls.process_and_export_gcms_data(GCMS_data)
 
-        mass = []
-
-        for i in GCMS_data.split():
-            try:
-                mass.append(float(i))
-            except:
-                continue
-
-        test = []
-
-        for i in range(4):
-            for j in range(4):
-                adding = []
-                for k in range(0, 33, 4):
-                    adding.append(mass[int(((i * len(mass)) / 4) + j + k)])
-
-                adding.append(100 - sum(adding))
-
-                adding.append(sum(adding))
-
-                test.append(adding)
-
-        for i in range(len(test)):
-            GCMS_to_xls.save_data_to_excel(test[i], f"{i + 1}.xls")
