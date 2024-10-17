@@ -54,7 +54,7 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
         # 모델 학습
         train_model(model, dataloader, model_path)
 
-    # 모델 평가
+    # 모델 평가 ######## Taget 온도 바꾸려면 여기
     predicted_byproducts = evaluate_model(model)
 
     # Gaussian smoothing 적용
