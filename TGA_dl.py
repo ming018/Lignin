@@ -29,10 +29,10 @@ def process_TGA_data(TGA_data, cat, target_temp):
     return data, temp1, temp2
 
 
-def prepare_dataloader(data):
+def prepare_dataloader(data, computer_device):
     """Dataset과 DataLoader를 생성."""
-    temperature_data = torch.tensor([[250], [300], [350], [400]], dtype=torch.float).to('cuda')
-    byproduct_data = torch.tensor(data, dtype=torch.float).to('cuda')
+    temperature_data = torch.tensor([[250], [300], [350], [400]], dtype=torch.float).to(computer_device)
+    byproduct_data = torch.tensor(data, dtype=torch.float).to(computer_device)
 
     # Dataset 및 DataLoader 생성
     batch_size = 16
@@ -42,9 +42,9 @@ def prepare_dataloader(data):
     return dataloader
 
 
-def train_model(model, dataloader, model_path, epochs=10000, learning_rate=0.001):
+def train_model(model, dataloader, model_path, computer_device, epochs=10000, learning_rate=0.001):
     """모델 학습을 수행하고, 완료되면 모델을 저장."""
-    model.to('cuda')
+    model.to(computer_device)
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
@@ -72,22 +72,22 @@ def train_model(model, dataloader, model_path, epochs=10000, learning_rate=0.001
     torch.save(model.state_dict(), model_path)
 
 
-def load_model(model, model_path):
+def load_model(model, model_path, computer_device):
     """학습된 모델을 불러옵니다."""
     if os.path.exists(model_path):
         print(f"Loading model from {model_path}")
         model.load_state_dict(torch.load(model_path))
-        model.to('cuda')
+        model.to(computer_device)
         model.eval()
         return True
     return False
 
 
-def evaluate_model(model):
+def evaluate_model(model, computer_device):
     """새로운 온도에서 모델을 평가하고 결과를 반환."""
     model.eval()
     with torch.no_grad():
-        new_temperatures = torch.tensor([[260], [320], [370], [420]], dtype=torch.float).to('cuda')
+        new_temperatures = torch.tensor([[260], [320], [370], [420]], dtype=torch.float).to(computer_device)
         new_temperatures = new_temperatures.unsqueeze(1)
         predicted_byproducts = model(new_temperatures)
 

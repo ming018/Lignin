@@ -32,14 +32,9 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 12 Round_G == C
 
 def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new_model=True):
-    # 여러 보간 방법들을 비교 TF
-    compare_interpolate_methods = False
 
-    # 보간 진행 T/F
-    TGA_interpolation = False
-
-    # 특정 데이터 평가 T/F
-    interpolated_data_evaluate = False
+    # GPU 유무에 따라서 cuda or cpu 설정
+    computer_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
@@ -47,15 +42,15 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
     model = ByproductPredictorCNN(1, 761)
 
     # 이미 학습된 모델이 있는 경우 로드, 없으면 학습
-    if not load_model(model, model_path) and train_new_model:
+    if not load_model(model, model_path, computer_device) and train_new_model:
         # 데이터로부터 DataLoader 준비
-        dataloader = prepare_dataloader(data)
+        dataloader = prepare_dataloader(data, computer_device)
 
         # 모델 학습
-        train_model(model, dataloader, model_path)
+        train_model(model, dataloader, model_path, computer_device)
 
     # 모델 평가 ######## Taget 온도 바꾸려면 여기
-    predicted_byproducts = evaluate_model(model)
+    predicted_byproducts = evaluate_model(model, computer_device)
 
     # Gaussian smoothing 적용
     predicted_byproducts_smoothed = smooth_data(predicted_byproducts, sigma=2)
