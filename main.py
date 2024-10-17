@@ -66,8 +66,8 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
 
 if __name__ == '__main__' :
     # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-    condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-
+    # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+    condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
 
     # cat = input('촉매 입력 No Pt/C Ru/C Raney Ni ')
     cat = 'No'
