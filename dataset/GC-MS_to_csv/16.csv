@@ -1,2 +1,12 @@
-Syringyl,Guaiacyl,Poly aromatics,Other aromatics,Alkanes(Paraffins),Cyclic,Fatty Acids,alcohol,Glycerol derived,Other,Total,Catalyst,temp
-3.56,10.51,7.08,56.5,0.45,4.66,4.51,0.41,0.51,11.809999999999988,100.0,RN,400
+Category,Value,Catalyst,temp
+Syringyl,3.56,RN,400
+Guaiacyl,10.51,RN,400
+Poly aromatics,7.08,RN,400
+Other aromatics,56.5,RN,400
+Alkanes(Paraffins),0.45,RN,400
+Cyclic,4.66,RN,400
+Fatty Acids,4.51,RN,400
+alcohol,0.41,RN,400
+Glycerol derived,0.51,RN,400
+Other,11.809999999999988,RN,400
+Total,100.0,RN,400

@@ -32,17 +32,21 @@ def process_and_export_gcms_data(GCMS_data) :
 
 def save_data_to_csv(data, file_name):
     """
-    데이터 배열과 파일 이름을 받아 CSV 파일로 저장하는 함수.
+    데이터 배열과 파일 이름을 받아 CSV 파일로 저장하는 함수 (세로로 저장).
 
     Args:
-    data (list): 값 리스트 (한 행에 저장될 값들).
+    data (list): 값 리스트 (한 열에 저장될 값들).
     file_name (str): 저장할 CSV 파일 이름.
     """
     # 고정된 제목 리스트
-    titles = ["Syringyl", "Guaiacyl", "Poly aromatics", "Other aromatics", "Alkanes(Paraffins)", "Cyclic", "Fatty Acids", "alcohol", "Glycerol derived", "Other", "Total"]
+    titles = ["Syringyl", "Guaiacyl", "Poly aromatics", "Other aromatics", "Alkanes(Paraffins)",
+              "Cyclic", "Fatty Acids", "alcohol", "Glycerol derived", "Other", "Total"]
 
-    # 제목과 데이터를 한 행에 저장
-    df = pd.DataFrame([titles, data])
+    # 제목과 데이터를 세로로 변환 (하나의 열에 두 리스트를 쌓음)
+    df = pd.DataFrame({
+        "Category": titles,
+        "Value": data
+    })
 
     save_path = "dataset/GC-MS_to_csv"
     # 경로가 없으면 폴더 생성
@@ -53,6 +57,5 @@ def save_data_to_csv(data, file_name):
     full_path = os.path.join(save_path, file_name)
 
     # 파일 저장 (CSV 형식으로)
-    df.to_csv(full_path, index=False, header=False)
+    df.to_csv(full_path, index=False)
     print(f'{full_path} 저장 완료!')
-
