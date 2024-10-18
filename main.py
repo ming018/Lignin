@@ -100,6 +100,6 @@ if __name__ == '__main__' :
     elif GCMS_bool :
 
         # 추출 파일이 없는 경우 추출을 진행
-        if os.path.exists('dataset/GC-MS_to_xls/16.xls'):
+        if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
             GCMS_to_xls.process_and_export_gcms_data(GCMS_data)
 
