@@ -13,11 +13,12 @@ from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
 import data_loader
-import GCMS_to_xls
+import GCMS_to_csv
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
-from GCMS import GCMS_add_Condition
+from GCMS import GCMS_add_Condition, GCMS_combine
+
 
 # 0 Time
 # 1 Temperature
@@ -102,7 +103,15 @@ if __name__ == '__main__' :
 
         # 추출 파일이 없는 경우 추출을 진행
         if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
-            GCMS_to_xls.process_and_export_gcms_data(GCMS_data)
+            GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
 
+        # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
         path = 'dataset/GC-MS_to_csv/'
         GCMS_add_Condition.process_csv_files_in_directory(path)
+
+        # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
+        # 없는 경우 합친 파일 생성 후 할당
+        if not(os.path.exists('dataset/combined_GCMS.csv')):
+            combined_data = GCMS_combine.combine_csv_files()
+        else :
+            combined_data = pd.read_csv('dataset/combined_GCMS.csv')
