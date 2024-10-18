@@ -17,7 +17,7 @@ import GCMS_to_csv
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
-from GCMS import GCMS_add_Condition, GCMS_combine
+from GCMS import GCMS_add_Condition, GCMS_combine, GCMS_RandomForest
 
 
 # 0 Time
@@ -112,6 +112,9 @@ if __name__ == '__main__' :
         # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
         # 없는 경우 합친 파일 생성 후 할당
         if not(os.path.exists('dataset/combined_GCMS.csv')):
-            combined_data = GCMS_combine.combine_csv_files()
-        else :
-            combined_data = pd.read_csv('dataset/combined_GCMS.csv')
+            GCMS_combine.combine_csv_files()
+        # else :
+        #     combined_data = pd.read_csv('dataset/combined_GCMS.csv')
+        #     print("기존의 결합된 csv를 불러 왔습니다.")
+
+        GCMS_RandomForest.process_and_train_tga_gcms()

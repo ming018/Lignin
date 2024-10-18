@@ -33,8 +33,4 @@ def combine_csv_files(directory = 'dataset/GC-MS_to_csv/', output_path = 'datase
         combined_csv.to_csv(output_path, index=False)
         print(f"결합된 CSV 파일이 {output_path}에 저장되었습니다.")
 
-        return combined_csv
-    else:
-        print("해당 디렉토리에 CSV 파일이 없습니다.")
-        return pd.DataFrame()  # 빈 데이터프레임 반환
 
