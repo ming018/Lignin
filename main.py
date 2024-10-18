@@ -17,6 +17,7 @@ import GCMS_to_xls
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
+from GCMS import GCMS_add_Condition
 
 # 0 Time
 # 1 Temperature
@@ -67,7 +68,7 @@ if __name__ == '__main__' :
     # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
     condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
-    # cat = input('촉매 입력 No Pt/C Ru/C Raney Ni ')
+    # cat = input('촉매 입력 No PtC RuC RN')
     cat = 'No'
 
     # target_temp = int(input('온도 입력 250 ~ 400'))
@@ -103,3 +104,5 @@ if __name__ == '__main__' :
         if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
             GCMS_to_xls.process_and_export_gcms_data(GCMS_data)
 
+        path = 'dataset/GC-MS_to_csv/'
+        GCMS_add_Condition.process_csv_files_in_directory(path)
