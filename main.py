@@ -11,7 +11,9 @@ from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
 from TGA_dl import process_TGA_data, load_model, prepare_dataloader, train_model, evaluate_model, smooth_data
 from FTIR_dl import preprocess_FTIR_data, train_and_evaluate, predict_and_plot
+from GCMS_dl import train_and_evaluate as GCMS_train_and_evaluate
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
+from models.TemperatureToCompositionPredictor import TemperatureToCompositionPredictor
 from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
@@ -20,6 +22,7 @@ import GCMS_to_csv
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
+
 from GCMS import GCMS_add_Condition, GCMS_combine, GCMS_RandomForest
 
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval, \
@@ -39,6 +42,23 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 10 Detail_Weight
 # 11 Round_K
 # 12 Round_G == C
+
+def GCMS_augmentation(data,cat):
+    data = data[data['Catalyst'] == cat]
+    data_250 = data[data['temp'] == 250]['Value'].values[:-1]
+    data_300 = data[data['temp'] == 300]['Value'].values[:-1]
+    data_350 = data[data['temp'] == 350]['Value'].values[:-1]
+    data_400 = data[data['temp'] == 400]['Value'].values[:-1]
+
+    combined_data = np.vstack((data_250, data_300, data_350, data_400))
+
+    temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
+    temperature_data = torch.tensor(temperature_data).unsqueeze(1).to('cuda')
+    composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to('cuda')
+
+    model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to('cuda')
+    predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data)
+    return predicted_composition
 
 def FTIR_augmentation(FTIR_data):
     preprocessed_data = preprocess_FTIR_data(FTIR_data)
@@ -124,8 +144,6 @@ if __name__ == '__main__' :
 
 
         data = read_csv('dataset/combined_GCMS.csv')
-        # else :
-        #     combined_data = pd.read_csv('dataset/combined_GCMS.csv')
-        #     print("기존의 결합된 csv를 불러 왔습니다.")
+        prediction = GCMS_augmentation(data,"NoCat")
 
-        GCMS_RandomForest.process_and_train_tga_gcms()
+       # GCMS_RandomForest.process_and_train_tga_gcms()
