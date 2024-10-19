@@ -1,1 +1,6 @@
-dataset/*
+dataset/FT-IR
+dataset/GC-MS
+dataset/after_csv
+dataset/TGA
+
+
