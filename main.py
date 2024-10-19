@@ -2,20 +2,24 @@ import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
-from torch import nn
+from torch import nn, optim
 from torch.utils.data import DataLoader
 
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
 from TGA_dl import process_TGA_data, load_model, prepare_dataloader, train_model, evaluate_model, smooth_data
+from FTIR_dl import preprocess_FTIR_data, train_and_evaluate, predict_and_plot
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
+from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
 import data_loader
 import GCMS_to_xls
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
-from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
+from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval, \
+    group_and_average_data, group_preprocessed_data, clip_data_to_100, process_data_with_log
+
 
 # 0 Time
 # 1 Temperature
@@ -30,6 +34,25 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 10 Detail_Weight
 # 11 Round_K
 # 12 Round_G == C
+
+def FTIR_augmentation(FTIR_data):
+    preprocessed_data = preprocess_FTIR_data(FTIR_data)
+    # 입력 및 출력 데이터 설정
+    temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
+    output_data = preprocessed_data[0][:, 1, :]  # (4, 3476) 형태의 데이터
+
+    # PyTorch 텐서로 변환
+    temperatures = torch.tensor(temperature_data).unsqueeze(1).to('cuda')  # (batch_size, 1, 1)
+    outputs = torch.tensor(output_data).to('cuda')
+
+    # 모델 초기화 및 학습
+    model = TemperatureToDataPredictorCNN(input_size=1).to('cuda')
+    train_and_evaluate(model, temperatures, outputs)
+
+    # 새로운 온도에서의 예측 및 시각화
+    new_temperatures = torch.tensor([[275.0], [325.0], [375.0]], dtype=torch.float32).unsqueeze(1).to('cuda')
+    predict_and_plot(model, preprocessed_data, new_temperatures)
+    return new_temperatures
 
 def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new_model=True):
     # 여러 보간 방법들을 비교 TF
@@ -80,25 +103,9 @@ if __name__ == '__main__' :
     GCMS_bool = False
 
     if TGA_bool :
-        augmented_data = TGA_augmentation(TGA_data, cat, target_temp)
+        augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp)
     elif FTIR_bool :
-
-        # 모든 함수에서 경로 변경이 필요
-
-        for j in range(1, 16) :
-            for i in range(1, 3) :
-              # 데이터 보간 및 병합(머신러닝 용)
-              FTIR_Interpolate_combine.Interpolate_combine(FTIR_data[i][1], FTIR_data[i + 1][1], f"{j}-{i}", f"{j}-{i + 1}")
-
-
-        # # 학습 및 모델 저장 및 예측 결과 저장
-        # FTIR_RandomForest.FTIR_RF(only_predict=False)
-        # FTIR_LightGBM.FTIR_GBM(only_predict=False)
-        # FTIR_AdaBoost.FTIR_ABoost(only_predict=False)
-        #
-        # # ImageMaker를 이용하여 그래프 생성 및 이미지 저장
-        # FTIR_ImageMaker.makeImage(save=False)
-
+        augmented_FTIR_data = FTIR_augmentation(FTIR_data)
     elif GCMS_bool :
 
         # GCMS 파일에서 Bold된 글자들을 엑셀파일로 저장
