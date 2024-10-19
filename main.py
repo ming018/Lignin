@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from matplotlib import pyplot as plt
+from pandas import read_csv
 from torch import nn, optim
 from torch.utils.data import DataLoader
 import os
@@ -89,7 +90,8 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
 if __name__ == '__main__' :
     # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
     # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-    condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
+    # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
+    condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
     # cat = input('촉매 입력 No PtC RuC RN')
     cat = 'No'
@@ -98,8 +100,8 @@ if __name__ == '__main__' :
     target_temp = 275
 
     TGA_bool = False
-    FTIR_bool = True
-    GCMS_bool = False
+    FTIR_bool = False
+    GCMS_bool = True
 
     if TGA_bool :
         augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp)
@@ -111,14 +113,17 @@ if __name__ == '__main__' :
         if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
             GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
 
-        # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
-        path = 'dataset/GC-MS_to_csv/'
-        GCMS_add_Condition.process_csv_files_in_directory(path)
+            # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
+            path = 'dataset/GC-MS_to_csv/'
+            GCMS_add_Condition.process_csv_files_in_directory(path)
 
         # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
         # 없는 경우 합친 파일 생성 후 할당
         if not(os.path.exists('dataset/combined_GCMS.csv')):
             GCMS_combine.combine_csv_files()
+
+
+        data = read_csv('dataset/combined_GCMS.csv')
         # else :
         #     combined_data = pd.read_csv('dataset/combined_GCMS.csv')
         #     print("기존의 결합된 csv를 불러 왔습니다.")
