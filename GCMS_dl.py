@@ -1,24 +1,45 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from torch import nn, optim
+import torch
+import os
 
-def train_and_evaluate(model, temperatures, composition_data, learning_rate=0.001, epochs=500):
-    criterion = nn.MSELoss()  # 손실 함수: MSE
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)  # Adam optimizer
+def train_and_evaluate(model, temperatures, composition_data, learning_rate=0.001, epochs=5000):
+    MODEL_PATH = "composition_model.pth"
 
-    for epoch in range(epochs):
-        model.train()
-        predicted_composition = model(temperatures)
-        loss = criterion(predicted_composition, composition_data)
+    if os.path.exists(MODEL_PATH):
+        print("Loading the existing model...")
+        model.load_state_dict(torch.load(MODEL_PATH))  # 저장된 모델 가중치 불러오기
+    else:
+        print("Training the model...")
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        criterion = nn.MSELoss()  # 손실 함수: MSE
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)  # Adam optimizer
 
-        if (epoch + 1) % 50 == 0:
-            print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
+        for epoch in range(epochs):
+            model.train()
+            predicted_composition = model(temperatures)
+            loss = criterion(predicted_composition, composition_data)
 
-    return predicted_composition
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            if (epoch + 1) % 50 == 0:
+                print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
+
+                # 학습 후 모델 저장
+        torch.save(model.state_dict(), MODEL_PATH)
+        print(f"Model saved to {MODEL_PATH}")
+
+    # 예측 예시
+    model.eval()
+    with torch.no_grad():
+        new_temperatures = np.array([275, 325, 375], dtype=np.float32).reshape(-1, 1)
+        new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to('cuda')
+        predicted_compositions = model(new_temperatures)
+
+    return predicted_compositions
 
 
 # 실제와 예측 데이터를 비교하는 바 그래프 시각화 함수
