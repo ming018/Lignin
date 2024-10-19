@@ -4,6 +4,7 @@ import torch
 from matplotlib import pyplot as plt
 from torch import nn, optim
 from torch.utils.data import DataLoader
+import os
 
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
@@ -14,9 +15,12 @@ from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
 import data_loader
-import GCMS_to_xls
+import GCMS_to_csv
 from TGA import TGA_interpolate, TGA_compare_interpolations, group
 import TGA.TGA_evaluate
+from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
+from GCMS import GCMS_add_Condition, GCMS_combine, GCMS_RandomForest
+
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval, \
     group_and_average_data, group_preprocessed_data, clip_data_to_100, process_data_with_log
 
@@ -55,14 +59,9 @@ def FTIR_augmentation(FTIR_data):
     return new_temperatures
 
 def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new_model=True):
-    # 여러 보간 방법들을 비교 TF
-    compare_interpolate_methods = False
 
-    # 보간 진행 T/F
-    TGA_interpolation = False
-
-    # 특정 데이터 평가 T/F
-    interpolated_data_evaluate = False
+    # GPU 유무에 따라서 cuda or cpu 설정
+    computer_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
@@ -70,15 +69,15 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
     model = ByproductPredictorCNN(1, 761)
 
     # 이미 학습된 모델이 있는 경우 로드, 없으면 학습
-    if not load_model(model, model_path) and train_new_model:
+    if not load_model(model, model_path, computer_device) and train_new_model:
         # 데이터로부터 DataLoader 준비
-        dataloader = prepare_dataloader(data)
+        dataloader = prepare_dataloader(data, computer_device)
 
         # 모델 학습
-        train_model(model, dataloader, model_path)
+        train_model(model, dataloader, model_path, computer_device)
 
     # 모델 평가 ######## Taget 온도 바꾸려면 여기
-    predicted_byproducts = evaluate_model(model)
+    predicted_byproducts = evaluate_model(model, computer_device)
 
     # Gaussian smoothing 적용
     predicted_byproducts_smoothed = smooth_data(predicted_byproducts, sigma=2)
@@ -92,7 +91,7 @@ if __name__ == '__main__' :
     # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
     condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
 
-    # cat = input('촉매 입력 No Pt/C Ru/C Raney Ni ')
+    # cat = input('촉매 입력 No PtC RuC RN')
     cat = 'No'
 
     # target_temp = int(input('온도 입력 250 ~ 400'))
@@ -108,30 +107,20 @@ if __name__ == '__main__' :
         augmented_FTIR_data = FTIR_augmentation(FTIR_data)
     elif GCMS_bool :
 
-        # GCMS 파일에서 Bold된 글자들을 엑셀파일로 저장
-        # dataset/GC-MS_to_xls/*.xls
+        # 추출 파일이 없는 경우 추출을 진행
+        if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
+            GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
 
-        mass = []
+        # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
+        path = 'dataset/GC-MS_to_csv/'
+        GCMS_add_Condition.process_csv_files_in_directory(path)
 
-        for i in GCMS_data.split():
-            try:
-                mass.append(float(i))
-            except:
-                continue
+        # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
+        # 없는 경우 합친 파일 생성 후 할당
+        if not(os.path.exists('dataset/combined_GCMS.csv')):
+            GCMS_combine.combine_csv_files()
+        # else :
+        #     combined_data = pd.read_csv('dataset/combined_GCMS.csv')
+        #     print("기존의 결합된 csv를 불러 왔습니다.")
 
-        test = []
-
-        for i in range(4):
-            for j in range(4):
-                adding = []
-                for k in range(0, 33, 4):
-                    adding.append(mass[int(((i * len(mass)) / 4) + j + k)])
-
-                adding.append(100 - sum(adding))
-
-                adding.append(sum(adding))
-
-                test.append(adding)
-
-        for i in range(len(test)):
-            GCMS_to_xls.save_data_to_excel(test[i], f"{i + 1}.xls")
+        GCMS_RandomForest.process_and_train_tga_gcms()

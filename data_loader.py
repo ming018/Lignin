@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-import PyPDF2
+from PyPDF2 import PdfReader
 import re
 import os
 import numpy as np
@@ -98,7 +98,6 @@ def load_FTIR(directory_path, cut_off, npy_path=None):
     data = []
 
     # 각 CSV 파일을 처리하여 데이터를 추출
-    # 각 CSV 파일을 처리하여 데이터를 추출
     for file in valid_files:
         file_name_without_ext = os.path.splitext(file)[0]  # 확장자 없는 파일명
         npy_file_path = os.path.join(directory_path, f"{file_name_without_ext}.npy")  # npy 파일 경로
@@ -145,13 +144,16 @@ def read_condition_file(file_path):
 
 def load_GCMS(file_path, start_page=6):
     # PDF 파일 열기
+
     with open(file_path, 'rb') as file:
-        reader = PyPDF2.PdfFileReader(file)
+        reader = PdfReader(file)
         text = ""
+
         # 지정된 페이지 이후의 모든 페이지의 텍스트 추출
-        for page_num in range(start_page, reader.numPages):
-            page = reader.getPage(page_num)
-            text += page.extract_text()
+        for page_num in range(start_page, len(reader.pages)):  # len(reader.pages)로 페이지 수 확인
+            page = reader.pages[page_num]  # reader.getPage() 대신 reader.pages[] 사용
+            text += page.extract_text()  # 텍스트 추출
+
 
     # 텍스트를 줄 단위로 나누기
     list_txt = text.split('\n')
