@@ -15,6 +15,7 @@ from GCMS_dl import train_and_evaluate as GCMS_train_and_evaluate
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
 from models.TemperatureToCompositionPredictor import TemperatureToCompositionPredictor
 from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
+from models.ml import compare_models
 from postprocessing import gaussian_smooth_data
 from utill import FTIR_ImageMaker
 import data_loader
@@ -97,6 +98,9 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
     # 모델 정의
+
+    compare_models(np.asarray(data)[:,2,:])
+
     model = ByproductPredictorCNN(1, 761)
 
     # 이미 학습된 모델이 있는 경우 로드, 없으면 학습
@@ -119,16 +123,16 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
 
 if __name__ == '__main__' :
 
-    flag = False
+    flag = True
     '''
     True  : Augmentation
     False : FTIR + TGA to GCMS 
     '''
     if flag:
         # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-        # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+        condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
         # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
-        condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
+        # condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
         # cat = input('촉매 입력 No PtC RuC RN')
         cat = 'No'
@@ -136,12 +140,13 @@ if __name__ == '__main__' :
         # target_temp = int(input('온도 입력 250 ~ 400'))
         target_temp = 275
 
-        TGA_bool = False
+        TGA_bool = True
         FTIR_bool = False
-        GCMS_bool = True
+        GCMS_bool = False
 
         if TGA_bool :
             augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp)
+
         elif FTIR_bool :
             augmented_FTIR_data = FTIR_augmentation(FTIR_data)
         elif GCMS_bool :
@@ -179,7 +184,7 @@ if __name__ == '__main__' :
         GCMS_model.load_state_dict(torch.load(GCMS_model_path, weights_only=True))
         GCMS_model.eval()
 
-        new_temperatures = np.arange(200, 401, 1, dtype=np.float32).reshape(-1, 1)
+        new_temperatures = np.arange(200, 401, 0.01, dtype=np.float32).reshape(-1, 1)
         new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to('cuda')
 
         TGA_data = TGA_model(new_temperatures)
@@ -240,9 +245,9 @@ if __name__ == '__main__' :
             def __init__(self, latent_dim, output_dim):
                 super(Expert, self).__init__()
                 self.fc = nn.Sequential(
-                    nn.Linear(latent_dim, 128),
+                    nn.Linear(latent_dim, 256),
                     nn.ReLU(),
-                    nn.Linear(128, output_dim)
+                    nn.Linear(256, output_dim)
                 )
 
             def forward(self, z):
@@ -313,13 +318,14 @@ if __name__ == '__main__' :
         # 모델 초기화
         input_dim1 = 761
         input_dim2 = 3476
-        latent_dim = 128
+        latent_dim = 256
         output_dim = 10
         num_experts = 3
 
         model = MVAE_MoE(input_dim1, input_dim2, latent_dim, output_dim, num_experts).to('cuda')
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=0.0005)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
 
         # TGA_data = TGA_data.unsqueeze(1).to('cuda')
         # FTIR_data = FTIR_data.unsqueeze(1).to('cuda')
@@ -335,6 +341,7 @@ if __name__ == '__main__' :
             loss = loss_function(recon_x1, TGA_data, recon_x2, FTIR_data, output, GCMS_data, mu, log_var)
             loss.backward(retain_graph=True)
             optimizer.step()
+            scheduler.step(loss)
 
             if (epoch + 1) % 50 == 0:
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
