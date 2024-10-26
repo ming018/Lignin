@@ -1,9 +1,14 @@
+import os
+
 import numpy as np
 import torch
 from fastdtw import fastdtw
+from pandas import read_csv
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
+import GCMS_to_csv
 import data_loader
+from GCMS import GCMS_add_Condition, GCMS_combine
 from TGA_dl import process_TGA_data, load_model, smooth_data
 from FTIR_dl import preprocess_FTIR_data
 from models.ByproductPredictorCNN import ByproductPredictorCNN
@@ -352,8 +357,9 @@ if __name__ == '__main__':
 
     tga_model_path = 'tga.pth'
     ftir_model_path = 'FTIR_model.pth'
+    gcms_model_path = 'composition_model.pth'
 
-    cat = 'No'
+    cat = 'NoCat'
     target_temp = 275  # not for use
 
     # GPU 유무에 따라서 cuda or cpu 설정
@@ -387,10 +393,27 @@ if __name__ == '__main__':
     # print("FTIR 모델 순위:", ranked_models)
     # print("Data generation and plotting completed.")
 
-    GCMS_data = GCMS_data[GCMS_data['Catalyst'] == cat]
+    # 추출 파일이 없는 경우 추출을 진행
+    if not (os.path.exists('dataset/GC-MS_to_csv/16.xls')):
+        GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
+
+        # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
+        path = 'dataset/GC-MS_to_csv/'
+        GCMS_add_Condition.process_csv_files_in_directory(path)
+
+    # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
+    # 없는 경우 합친 파일 생성 후 할당
+    if not (os.path.exists('dataset/combined_GCMS.csv')):
+        GCMS_combine.combine_csv_files()
+
+    data = read_csv('dataset/combined_GCMS.csv')
+    data = data[data['Catalyst'] == cat]
     temps = [250, 300, 350, 400]
-    combined_data = np.vstack([GCMS_data[GCMS_data['temp'] == temp]['Value'].values[:-1]/100 for temp in temps])
+    combined_data = np.vstack([data[data['temp'] == temp]['Value'].values[:-1]/100 for temp in temps])
 
     model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to('cuda')
-
-
+    load_model(model, gcms_model_path, device)
+    rst = generate_data(combined_data, model, desired_temps, device)
+    evaluation_results = evaluate_predictions_with_ratio(rst, combined_data)
+    ranked_models = rank_models(evaluation_results)
+    print("FTIR 모델 순위:", ranked_models)

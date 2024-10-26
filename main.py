@@ -45,6 +45,7 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 12 Round_G == C
 
 def GCMS_augmentation(data,cat,device):
+
     data = data[data['Catalyst'] == cat]
     data_250 = data[data['temp'] == 250]['Value'].values[:-1]
     data_300 = data[data['temp'] == 300]['Value'].values[:-1]
@@ -133,9 +134,9 @@ if __name__ == '__main__' :
 
     if flag:
         # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-        condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+        # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
         # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
-        # condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
+        condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
         # cat = input('촉매 입력 NoCat PtC RuC RN')
         cat = 'NoCat'
@@ -143,9 +144,9 @@ if __name__ == '__main__' :
         # target_temp = int(input('온도 입력 250 ~ 400'))
         target_temp = 275
 
-        TGA_bool = True
+        TGA_bool = False
         FTIR_bool = False
-        GCMS_bool = False
+        GCMS_bool = True
 
         if TGA_bool :
             augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp, device)
