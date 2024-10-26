@@ -5,7 +5,10 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 import data_loader
 from TGA_dl import process_TGA_data, load_model, smooth_data
+from FTIR_dl import preprocess_FTIR_data
 from models.ByproductPredictorCNN import ByproductPredictorCNN
+from models.TemperatureToCompositionPredictor import TemperatureToCompositionPredictor
+from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from models.ml import polynomial_regression, random_forest, support_vector_regression, k_nearest_neighbors, \
     linear_regression
 
@@ -13,9 +16,12 @@ from scipy.interpolate import griddata, PchipInterpolator, Akima1DInterpolator, 
 from matplotlib import pyplot as plt
 
 from scipy.stats import pearsonr
+
+
 # 온도 간의 비율 계산
 def calculate_ratio(target_temp, X1_temp, X2_temp):
     return (target_temp - X1_temp) / (X2_temp - X1_temp)
+
 
 def consistency_score(predictions, X1, X2, ratio):
     # 예측값과 기준 온도들 사이의 거리 계산
@@ -32,6 +38,7 @@ def consistency_score(predictions, X1, X2, ratio):
     consistency = 1 - abs(predicted_ratio - ratio)
     return consistency
 
+
 def hybrid_score(predictions, X1, X2, ratio, alpha=0.5):
     # 정확성 평가 (MSE 사용)
     accuracy_mse = mean_squared_error(predictions, (X1 + X2) / 2)
@@ -41,6 +48,7 @@ def hybrid_score(predictions, X1, X2, ratio, alpha=0.5):
 
     # 최종 점수 계산
     return alpha * (1 / (1 + accuracy_mse)) + (1 - alpha) * consistency
+
 
 def evaluate_predictions_with_ratio(results, TGA_data, alpha=0.8):
     evaluation_results = []
@@ -73,7 +81,6 @@ def evaluate_predictions_with_ratio(results, TGA_data, alpha=0.8):
         evaluation_results.append(model_evaluations)
 
     return evaluation_results
-
 
 
 # 정규화 함수
@@ -180,9 +187,10 @@ def evaluate_model(model, device, desired_temps):
     predicted_byproducts = predicted_byproducts.detach().cpu().numpy()
 
     # 결과를 부드럽게 처리
-    #predicted_byproducts = smooth_data(predicted_byproducts, sigma=2)
+    # predicted_byproducts = smooth_data(predicted_byproducts, sigma=2)
 
     return predicted_byproducts
+
 
 # 보간법 추가 (Linear, PCHIP, RBF, Akima)
 def linear_spline_interpolation(X, y, X_pred):
@@ -203,6 +211,7 @@ def linear_spline_interpolation(X, y, X_pred):
 
     return result
 
+
 def pchip_interpolation(X, y, X_pred):
     y_pred = []
     for t in np.unique(X[:, 1]):
@@ -214,9 +223,11 @@ def pchip_interpolation(X, y, X_pred):
         y_pred.extend(interp_func(X_pred_t))
     return np.array(y_pred)
 
+
 def rbf_interpolation(X, y, X_pred):
     interp_func = Rbf(X[:, 0], X[:, 1], y, function='linear')
     return interp_func(X_pred[:, 0], X_pred[:, 1])
+
 
 def akima_interpolation(X, y, X_pred):
     y_pred = []
@@ -247,6 +258,7 @@ def akima_interpolation(X, y, X_pred):
         y_pred.extend(y_pred_t)
 
     return np.array(y_pred)
+
 
 # 데이터 생성 함수 (모델 학습 및 보간 적용)
 def generate_data(data, model, desired_temps, device):
@@ -338,24 +350,47 @@ def generate_data(data, model, desired_temps, device):
 if __name__ == '__main__':
     condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR)
 
-    model_path = 'tga.pth'
+    tga_model_path = 'tga.pth'
+    ftir_model_path = 'FTIR_model.pth'
+
     cat = 'No'
     target_temp = 275  # not for use
 
     # GPU 유무에 따라서 cuda or cpu 설정
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
-    TGA_data, _, _ = process_TGA_data(TGA_data, cat, target_temp)
-    model = ByproductPredictorCNN(1, 761)  # ByproductPredictorCNN 사용
-    load_model(model, model_path, device)
-
     desired_temps = np.arange(250, 401, 10, dtype=np.float32).reshape(-1, 1)
-    rst = generate_data(np.asarray(TGA_data)[:, 2, :], model, desired_temps, device)
-    # print("결과",rst)
-    TGA_data_samples = [TGA_data[0][2], TGA_data[1][2], TGA_data[2][2], TGA_data[3][2]]
 
-    evaluation_results = evaluate_predictions_with_ratio(rst, TGA_data_samples)
-    ranked_models = rank_models(evaluation_results)
-    print("모델 순위:", ranked_models)
-    print("Data generation and plotting completed.")
+    '''
+    process_data => Load CNN => load_model
+    => generate => sample => results => rank
+    '''
+    # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
+    # TGA_data, _, _ = process_TGA_data(TGA_data, cat, target_temp)
+    # model = ByproductPredictorCNN(1, 761).to('cuda')  # ByproductPredictorCNN 사용
+    # load_model(model, tga_model_path, device)
+    # rst = generate_data(np.asarray(FTIR_data)[:,:,1,:], model, desired_temps, device)
+    # # print("결과",rst)
+    # TGA_data_samples = [TGA_data[0][2], TGA_data[1][2], TGA_data[2][2], TGA_data[3][2]]
+    #
+    # evaluation_results = evaluate_predictions_with_ratio(rst, TGA_data_samples)
+    # ranked_models = rank_models(evaluation_results)
+    # print("TGA 모델 순위:", ranked_models)
+
+    # FTIR_data = preprocess_FTIR_data(FTIR_data)
+    # model = TemperatureToDataPredictorCNN(input_size=1).to('cuda')
+    # load_model(model, ftir_model_path, device)
+    # rst = generate_data(np.asarray(FTIR_data)[0,:,1,:], model, desired_temps, device)
+    # FTIR_data_samples = [FTIR_data[0][0][1], FTIR_data[0][1][1], FTIR_data[0][2][1], FTIR_data[0][3][1]]
+    # evaluation_results = evaluate_predictions_with_ratio(rst, FTIR_data_samples)
+    # ranked_models = rank_models(evaluation_results)
+    # print("FTIR 모델 순위:", ranked_models)
+    # print("Data generation and plotting completed.")
+
+    GCMS_data = GCMS_data[GCMS_data['Catalyst'] == cat]
+    temps = [250, 300, 350, 400]
+    combined_data = np.vstack([GCMS_data[GCMS_data['temp'] == temp]['Value'].values[:-1]/100 for temp in temps])
+
+    model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to('cuda')
+
+

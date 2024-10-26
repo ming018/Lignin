@@ -56,7 +56,7 @@ def GCMS_augmentation(data,cat):
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
     temperature_data = torch.tensor(temperature_data).unsqueeze(1).to('cuda')
     composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to('cuda')
-
+    compare_models(composition_data.detach().cpu().numpy())
     model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to('cuda')
     predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data)
     return predicted_composition
@@ -68,6 +68,8 @@ def FTIR_augmentation(FTIR_data):
     # 입력 및 출력 데이터 설정
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
     output_data = preprocessed_data[0][:, 1, :]  # (4, 3476) 형태의 데이터
+
+    compare_models(np.asarray(output_data))
 
     # PyTorch 텐서로 변환
     temperatures = torch.tensor(temperature_data).unsqueeze(1).to('cuda')  # (batch_size, 1, 1)
@@ -130,9 +132,9 @@ if __name__ == '__main__' :
     '''
     if flag:
         # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-        condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+        # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
         # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
-        # condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
+        condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
         # cat = input('촉매 입력 No PtC RuC RN')
         cat = 'No'
@@ -140,9 +142,9 @@ if __name__ == '__main__' :
         # target_temp = int(input('온도 입력 250 ~ 400'))
         target_temp = 275
 
-        TGA_bool = True
+        TGA_bool = False
         FTIR_bool = False
-        GCMS_bool = False
+        GCMS_bool = True
 
         if TGA_bool :
             augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp)

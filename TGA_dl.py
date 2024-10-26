@@ -21,11 +21,6 @@ def process_TGA_data(TGA_data, cat, target_temp):
     data = [interpolate_temperature(d, 40, 800) for d in data]
     data = [reduce_to_one_degree_interval(d) for d in data]
 
-    # 데이터 시각화
-    plt.plot(data[2][0], data[2][2])
-    plt.plot(data[3][0], data[3][2])
-    plt.show()
-
     return data, temp1, temp2
 
 
