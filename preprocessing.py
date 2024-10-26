@@ -52,6 +52,7 @@ def reduce_by_temperature(data, method='mean'):
     :param method: 대표 값을 계산하는 방법 ('mean', 'median', 'max' 등)
     :return: 온도별 대표 값을 추출한 데이터
     """
+
     # 데이터 분리: 온도 값 (data[0])과 나머지 값 (data[1], data[2])
     temperature = data[0]
     remaining_data = data[1:]
