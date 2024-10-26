@@ -44,7 +44,7 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 11 Round_K
 # 12 Round_G == C
 
-def GCMS_augmentation(data,cat):
+def GCMS_augmentation(data,cat,device):
     data = data[data['Catalyst'] == cat]
     data_250 = data[data['temp'] == 250]['Value'].values[:-1]
     data_300 = data[data['temp'] == 300]['Value'].values[:-1]
@@ -54,14 +54,14 @@ def GCMS_augmentation(data,cat):
     combined_data = np.vstack((data_250, data_300, data_350, data_400))
 
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
-    temperature_data = torch.tensor(temperature_data).unsqueeze(1).to('cuda')
-    composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to('cuda')
+    temperature_data = torch.tensor(temperature_data).unsqueeze(1).to(device)
+    composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to(device)
     compare_models(composition_data.detach().cpu().numpy())
-    model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to('cuda')
+    model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to(device)
     predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data)
     return predicted_composition
 
-def FTIR_augmentation(FTIR_data):
+def FTIR_augmentation(FTIR_data, device):
     MODEL_PATH = "FTIR_model.pth"
 
     preprocessed_data = preprocess_FTIR_data(FTIR_data)
@@ -72,11 +72,11 @@ def FTIR_augmentation(FTIR_data):
     compare_models(np.asarray(output_data))
 
     # PyTorch 텐서로 변환
-    temperatures = torch.tensor(temperature_data).unsqueeze(1).to('cuda')  # (batch_size, 1, 1)
-    outputs = torch.tensor(output_data).to('cuda')
+    temperatures = torch.tensor(temperature_data).unsqueeze(1).to(device)  # (batch_size, 1, 1)
+    outputs = torch.tensor(output_data).to(device)
 
     # 모델 초기화
-    model = TemperatureToDataPredictorCNN(input_size=1).to('cuda')
+    model = TemperatureToDataPredictorCNN(input_size=1).to(device)
 
     # 모델이 이미 저장되어 있으면 로드, 아니면 학습
     if os.path.exists(MODEL_PATH):
@@ -88,14 +88,11 @@ def FTIR_augmentation(FTIR_data):
         torch.save(model.state_dict(), MODEL_PATH)  # 학습 후 모델 저장
 
     # 새로운 온도에서의 예측 및 시각화
-    new_temperatures = torch.tensor([[275.0], [325.0], [375.0]], dtype=torch.float32).unsqueeze(1).to('cuda')
+    new_temperatures = torch.tensor([[275.0], [325.0], [375.0]], dtype=torch.float32).unsqueeze(1).to(device)
     predict_and_plot(model, preprocessed_data, new_temperatures)
     return new_temperatures
 
-def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new_model=True):
-
-    # GPU 유무에 따라서 cuda or cpu 설정
-    computer_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='tga.pth', train_new_model=True):
 
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
@@ -106,15 +103,15 @@ def TGA_augmentation(TGA_data, cat, target_temp, model_path='tga.pth', train_new
     model = ByproductPredictorCNN(1, 761)
 
     # 이미 학습된 모델이 있는 경우 로드, 없으면 학습
-    if not load_model(model, model_path, computer_device) and train_new_model:
+    if not load_model(model, model_path, device) and train_new_model:
         # 데이터로부터 DataLoader 준비
-        dataloader = prepare_dataloader(data, computer_device)
+        dataloader = prepare_dataloader(data, device)
 
         # 모델 학습
-        train_model(model, dataloader, model_path, computer_device)
+        train_model(model, dataloader, model_path, device)
 
     # 모델 평가 ######## Taget 온도 바꾸려면 여기
-    predicted_byproducts = evaluate_model(model, computer_device)
+    predicted_byproducts = evaluate_model(model, device)
 
     # Gaussian smoothing 적용
     predicted_byproducts_smoothed = smooth_data(predicted_byproducts, sigma=2)
@@ -130,24 +127,28 @@ if __name__ == '__main__' :
     True  : Augmentation
     False : FTIR + TGA to GCMS 
     '''
+
+    # GPU 유무에 따라서 cuda or cpu 설정
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     if flag:
         # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
-        # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+        condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
         # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
-        condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
+        # condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
-        # cat = input('촉매 입력 No PtC RuC RN')
-        cat = 'No'
+        # cat = input('촉매 입력 NoCat PtC RuC RN')
+        cat = 'NoCat'
 
         # target_temp = int(input('온도 입력 250 ~ 400'))
         target_temp = 275
 
-        TGA_bool = False
+        TGA_bool = True
         FTIR_bool = False
-        GCMS_bool = True
+        GCMS_bool = False
 
         if TGA_bool :
-            augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp)
+            augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp, device)
 
         elif FTIR_bool :
             augmented_FTIR_data = FTIR_augmentation(FTIR_data)
@@ -168,26 +169,26 @@ if __name__ == '__main__' :
 
 
             data = read_csv('dataset/combined_GCMS.csv')
-            prediction = GCMS_augmentation(data,"NoCat")
+            prediction = GCMS_augmentation(data, cat, device)
             # GCMS_RandomForest.process_and_train_tga_gcms()
     else:
         TGA_model_path = 'tga.pth'
-        TGA_model = ByproductPredictorCNN(1, 761).to('cuda')
+        TGA_model = ByproductPredictorCNN(1, 761).to(device)
         TGA_model.load_state_dict(torch.load(TGA_model_path, weights_only=True))
         TGA_model.eval()
 
         FTIR_model_path = 'FTIR_model.pth'
-        FTIR_model = TemperatureToDataPredictorCNN(input_size=1).to('cuda')
+        FTIR_model = TemperatureToDataPredictorCNN(input_size=1).to(device)
         FTIR_model.load_state_dict(torch.load(FTIR_model_path, weights_only=True))
         FTIR_model.eval()
 
         GCMS_model_path = 'composition_model.pth'
-        GCMS_model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to('cuda')
+        GCMS_model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to(device)
         GCMS_model.load_state_dict(torch.load(GCMS_model_path, weights_only=True))
         GCMS_model.eval()
 
         new_temperatures = np.arange(200, 401, 0.01, dtype=np.float32).reshape(-1, 1)
-        new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to('cuda')
+        new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to(device)
 
         TGA_data = TGA_model(new_temperatures)
         FTIR_data = FTIR_model(new_temperatures)
@@ -324,7 +325,7 @@ if __name__ == '__main__' :
         output_dim = 10
         num_experts = 3
 
-        model = MVAE_MoE(input_dim1, input_dim2, latent_dim, output_dim, num_experts).to('cuda')
+        model = MVAE_MoE(input_dim1, input_dim2, latent_dim, output_dim, num_experts).to(device)
         criterion = nn.MSELoss()
         optimizer = optim.Adam(model.parameters(), lr=0.0005)
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
