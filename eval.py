@@ -53,7 +53,9 @@ def hybrid_score(predictions, X1, X2, ratio, alpha=0.5):
     consistency = consistency_score(predictions, X1, X2, ratio)
 
     # 최종 점수 계산
-    return alpha * (1 / (1 + accuracy_mse)) + (1 - alpha) * consistency
+    result = alpha * (1 / (1 + accuracy_mse)) + (1 - alpha) * consistency
+
+    return result
 
 
 def evaluate_predictions_with_ratio(results, TGA_data, alpha=0.8):
@@ -312,35 +314,36 @@ def generate_data(data, model, desired_temps, device):
         y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
         temp_results['models']['Random Forest'] = y_pred
 
-        # 서포트 벡터 회귀
-        y_pred = support_vector_regression(X, y, X_pred)
-        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
-        temp_results['models']['SVR'] = y_pred
+        # # 서포트 벡터 회귀
+        # y_pred = support_vector_regression(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['SVR'] = y_pred
 
         # K-최근접 이웃
         y_pred = k_nearest_neighbors(X, y, X_pred, n_neighbors=5)
         y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
         temp_results['models']['K-Nearest Neighbors'] = y_pred
 
-        # Linear Spline
-        y_pred = linear_spline_interpolation(X, y, X_pred)
-        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
-        temp_results['models']['Linear Spline'] = y_pred
+        # # Linear Spline
+        # y_pred = linear_spline_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['Linear Spline'] = y_pred
 
-        # PCHIP 보간
-        y_pred = pchip_interpolation(X, y, X_pred)
-        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
-        temp_results['models']['PCHIP Interpolation'] = y_pred
 
-        # RBF 보간
-        y_pred = rbf_interpolation(X, y, X_pred)
-        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
-        temp_results['models']['RBF Interpolation'] = y_pred
-
-        # Akima 보간
-        y_pred = akima_interpolation(X, y, X_pred)
-        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
-        temp_results['models']['Akima Interpolation'] = y_pred
+        # # PCHIP 보간
+        # y_pred = pchip_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['PCHIP Interpolation'] = y_pred
+        #
+        # # RBF 보간
+        # y_pred = rbf_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['RBF Interpolation'] = y_pred
+        #
+        # # Akima 보간
+        # y_pred = akima_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['Akima Interpolation'] = y_pred
 
         if model is not None and device is not None:
             torch_pred = evaluate_model(model, device, [desired_temp])
@@ -349,7 +352,7 @@ def generate_data(data, model, desired_temps, device):
 
         results.append(temp_results)
 
-    # plot_results(results, data, "TGA")
+    plot_results(results, data, "TGA")
     return results
 
 
@@ -388,6 +391,40 @@ def normalization_check_graph(data, y_label='Area %', y_lim=70, title='Bar Graph
     # 그래프 출력
     plt.show()
 
+def bar_graph2(data, desired_temps, y_label='Area %', y_lim=70, title='Bar Graph: normalization_check_graph', group_labels=None):
+    """
+    normalization 데이터를 막대 그래프로 표현해서 시각적인체크 용도
+    """
+
+    categories = ['Syringyl', 'Guaiacyl', 'Poly aromatics (C10~C21)', 'Other aromatics (C6~C20)',
+                  'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Glycerol derived', 'Other']
+    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'orange', 'black']
+
+    if group_labels is None:
+        group_labels = ['250°C', '300°C', '350°C', '400°C', f'{desired_temps}°C prediction']
+
+    x = np.arange(data.shape[0])  # 행 인덱스 (0, 1, 2, 3)
+    width = 0.15  # 막대 폭
+    spacing = 1.0  # 그룹 간 간격
+
+    # 막대그래프 생성
+    plt.figure(figsize=(10, 6))
+
+    # 각 열에 대해 막대그래프 그리기
+    for i in range(data.shape[1]):
+        plt.bar(x * (1 + spacing) + i * width, data[:, i] * 100, width, label=categories[i], color=colors[i])
+
+    # 그래프 레이블 및 제목 설정
+    plt.xlabel('')
+    plt.ylabel(y_label)
+    plt.ylim(0, y_lim)  # y축 범위 설정
+    plt.title(title)
+    plt.xticks(x * (1 + spacing) + (width * 5), group_labels)  # 그룹 레이블 설정
+    plt.legend(title='Categories')
+    plt.grid(True)
+
+    # 그래프 출력
+    plt.show()
 
 """
 GCMS interpolation한 값이 합이 1이 안되기 때문에
@@ -409,7 +446,8 @@ if __name__ == '__main__':
     # GPU 유무에 따라서 cuda or cpu 설정
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    desired_temps = np.arange(250, 401, 10, dtype=np.float32).reshape(-1, 1)
+    # desired_temps = np.arange(250, 401, 10, dtype=np.float32).reshape(-1, 1)
+    desired_temps = np.array([[275]])
 
     '''
     process_data => Load CNN => load_model
@@ -482,7 +520,16 @@ if __name__ == '__main__':
 
     model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to(device)
     load_model(model, gcms_model_path, device)
-    rst = generate_data(combined_data, model, desired_temps, device)
-    evaluation_results = evaluate_predictions_with_ratio(rst, combined_data)
+    result = generate_data(combined_data, model, desired_temps, device)
+    evaluation_results = evaluate_predictions_with_ratio(result, combined_data)
     ranked_models = rank_models(evaluation_results)
     print("FTIR 모델 순위:", ranked_models)
+
+    # 예측할 온도 설정
+    desired_temps = np.array([[275.0]])
+
+    # 모델을 이용해 예측 수행
+    predicted_byproducts = evaluate_model(model, device, desired_temps)
+
+    # 예측 결과 출력
+    bar_graph2(np.vstack((combined_data, predicted_byproducts)), desired_temps[0][0])
