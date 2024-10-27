@@ -359,8 +359,8 @@ def normalization_check_graph(data, y_label='Area %', y_lim=70, title='Bar Graph
     """
 
     categories = ['Syringyl', 'Guaiacyl', 'Poly aromatics (C10~C21)', 'Other aromatics (C6~C20)',
-                  'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Other', 'Other']
-    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'black', 'orange']
+                  'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Glycerol derived', 'Other']
+    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'orange', 'black']
 
     if group_labels is None:
         group_labels = ['250°C', '300°C', '350°C', '400°C']
