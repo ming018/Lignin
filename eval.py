@@ -19,6 +19,7 @@ from models.ml import polynomial_regression, random_forest, support_vector_regre
 
 from scipy.interpolate import griddata, PchipInterpolator, Akima1DInterpolator, Rbf
 from matplotlib import pyplot as plt
+from sklearn.preprocessing import MinMaxScaler
 
 from scipy.stats import pearsonr
 
@@ -352,6 +353,49 @@ def generate_data(data, model, desired_temps, device):
     return results
 
 
+def normalization_check_graph(data, y_label='Area %', y_lim=70, title='Bar Graph: normalization_check_graph', group_labels=None):
+    """
+    normalization 데이터를 막대 그래프로 표현해서 시각적인체크 용도
+    """
+
+    categories = ['Syringyl', 'Guaiacyl', 'Poly aromatics (C10~C21)', 'Other aromatics (C6~C20)',
+                  'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Other', 'Other']
+    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'black', 'orange']
+
+    if group_labels is None:
+        group_labels = ['250°C', '300°C', '350°C', '400°C']
+
+    x = np.arange(data.shape[0])  # 행 인덱스 (0, 1, 2, 3)
+    width = 0.15  # 막대 폭
+    spacing = 1.0  # 그룹 간 간격
+
+    # 막대그래프 생성
+    plt.figure(figsize=(10, 6))
+
+    # 각 열에 대해 막대그래프 그리기
+    for i in range(data.shape[1]):
+        plt.bar(x * (1 + spacing) + i * width, data[:, i] * 100, width, label=categories[i], color=colors[i])
+
+    # 그래프 레이블 및 제목 설정
+    plt.xlabel('')
+    plt.ylabel(y_label)
+    plt.ylim(0, y_lim)  # y축 범위 설정
+    plt.title(title)
+    plt.xticks(x * (1 + spacing) + (width * 5), group_labels)  # 그룹 레이블 설정
+    plt.legend(title='Categories')
+    plt.grid(True)
+
+    # 그래프 출력
+    plt.show()
+
+
+"""
+GCMS interpolation한 값이 합이 1이 안되기 때문에
+cross-entrophy전에 e넣으면 된다?
+"""
+
+
+
 if __name__ == '__main__':
     condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR)
 
@@ -409,9 +453,34 @@ if __name__ == '__main__':
     data = read_csv('dataset/combined_GCMS.csv')
     data = data[data['Catalyst'] == cat]
     temps = [250, 300, 350, 400]
-    combined_data = np.vstack([data[data['temp'] == temp]['Value'].values[:-1]/100 for temp in temps])
 
-    model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to('cuda')
+
+    # 이하, normalization
+    combined_data = []
+
+    for temp in temps:
+        # 현재 온도에 해당하는 데이터 선택
+        temp_data = data[data['temp'] == temp]
+
+        # 'Value' 열에서 필요한 데이터를 추출하고, 마지막 값 제외
+        values = temp_data['Value'].values[:-1]
+
+        # 값의 범위가 너무 크면, 스케일을 줄이기 위한 정규화 적용 (예: 값을 로그 스케일로 변환)
+        scaled_values = np.log1p(values)  # 로그 변환으로 큰 값을 줄이는 방식
+
+        # 소프트맥스 적용 (안정성을 위해 최대값을 빼는 방식 사용)
+        exp_values = np.exp(scaled_values - np.max(scaled_values))
+        softmax_values = exp_values / np.sum(exp_values)
+
+        # 결과를 리스트에 추가
+        combined_data.append(softmax_values)
+
+    combined_data = np.array(combined_data)
+
+    # 일반화 체크 용
+    normalization_check_graph(combined_data)
+
+    model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to(device)
     load_model(model, gcms_model_path, device)
     rst = generate_data(combined_data, model, desired_temps, device)
     evaluation_results = evaluate_predictions_with_ratio(rst, combined_data)
