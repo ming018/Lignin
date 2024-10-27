@@ -50,6 +50,8 @@ def plot_results(time, y_pred, y_std=None, model_name='Model'):
         plt.fill_between(time, y_pred - y_std, y_pred + y_std, alpha=0.2, label=f'{model_name} Uncertainty')
 
 
+
+
 def compare_models(data):
     plt.figure(figsize=(12, 8))
 
@@ -88,6 +90,8 @@ def compare_models(data):
     # K-최근접 이웃
     y_pred = k_nearest_neighbors(X, y, X_pred, n_neighbors=5)
     plot_results(time, y_pred, model_name='K-Nearest Neighbors')
+
+    #plot_grouped_bar_chart()
 
     # 실제 온도 데이터 시각화
     for i,temp in enumerate(temperatures):

@@ -4,12 +4,12 @@ from torch import nn, optim
 import torch
 import os
 
-def train_and_evaluate(model, temperatures, composition_data, learning_rate=0.001, epochs=5000):
+def train_and_evaluate(model, temperatures, composition_data, target_temp, device, learning_rate=0.001, epochs=5000):
     MODEL_PATH = "composition_model.pth"
 
     if os.path.exists(MODEL_PATH):
         print("Loading the existing model...")
-        model.load_state_dict(torch.load(MODEL_PATH))  # 저장된 모델 가중치 불러오기
+        model.load_state_dict(torch.load(MODEL_PATH, weights_only=True))  # 저장된 모델 가중치 불러오기
     else:
         print("Training the model...")
 
@@ -35,8 +35,8 @@ def train_and_evaluate(model, temperatures, composition_data, learning_rate=0.00
     # 예측 예시
     model.eval()
     with torch.no_grad():
-        new_temperatures = np.array([275, 325, 375], dtype=np.float32).reshape(-1, 1)
-        new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to('cuda')
+        new_temperatures = np.array(target_temp, dtype=np.float32).reshape(-1, 1)
+        new_temperatures = torch.tensor(new_temperatures).unsqueeze(1).to(device)
         predicted_compositions = model(new_temperatures)
 
     return predicted_compositions

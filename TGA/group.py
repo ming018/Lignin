@@ -9,9 +9,9 @@ def process_group_for_TGA(data, cat, temperature, test=False):
     Returns:
 
     '''
-    # 촉매 그룹 설정: No Cat, Pt/C, Ru/C, Raney Ni
+    # 촉매 그룹 설정: NoCat, Pt/C, Ru/C, Raney Ni
     group_number = {
-        'No': [0, 4, 8, 12],
+        'NoCat': [0, 4, 8, 12],
         'PtC': [1, 5, 9, 13],
         'RuC': [2, 6, 10, 14],
         'RN': [3, 7, 11, 15]

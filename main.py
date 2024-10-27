@@ -7,6 +7,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 import os
 
+from GCMS.GCMS_drawModel_graph import plot_grouped_bar_chart
 from TGA.train import TGA_RandomForest
 from FTIR import FTIR_Interpolate_combine, FTIR_RandomForest, FTIR_LightGBM, FTIR_AdaBoost
 from TGA_dl import process_TGA_data, load_model, prepare_dataloader, train_model, evaluate_model, smooth_data
@@ -44,8 +45,7 @@ from preprocessing import reduce_by_temperature, interpolate_temperature, reduce
 # 11 Round_K
 # 12 Round_G == C
 
-def GCMS_augmentation(data,cat,device):
-
+def GCMS_augmentation(data, cat, target_temp, device):
     data = data[data['Catalyst'] == cat]
     data_250 = data[data['temp'] == 250]['Value'].values[:-1]
     data_300 = data[data['temp'] == 300]['Value'].values[:-1]
@@ -59,10 +59,10 @@ def GCMS_augmentation(data,cat,device):
     composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to(device)
     compare_models(composition_data.detach().cpu().numpy())
     model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to(device)
-    predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data)
+    predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data, target_temp, device)
     return predicted_composition
 
-def FTIR_augmentation(FTIR_data, device):
+def FTIR_augmentation(FTIR_data, target_temp, device):
     MODEL_PATH = "FTIR_model.pth"
 
     preprocessed_data = preprocess_FTIR_data(FTIR_data)
@@ -89,14 +89,14 @@ def FTIR_augmentation(FTIR_data, device):
         torch.save(model.state_dict(), MODEL_PATH)  # 학습 후 모델 저장
 
     # 새로운 온도에서의 예측 및 시각화
-    new_temperatures = torch.tensor([[275.0], [325.0], [375.0]], dtype=torch.float32).unsqueeze(1).to(device)
+    new_temperatures = torch.tensor([target_temp], dtype=torch.float32).unsqueeze(1).to(device)
     predict_and_plot(model, preprocessed_data, new_temperatures)
     return new_temperatures
 
 def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='tga.pth', train_new_model=True):
 
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
-    data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp)
+    data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp[0])
     # 모델 정의
 
     compare_models(np.asarray(data)[:,2,:])
@@ -133,27 +133,28 @@ if __name__ == '__main__' :
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     if flag:
-        # condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
+        condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR)
         # condition_data, TGA_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='TGA')
         # condition_data, FTIR_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='FTIR')
-        condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
+        # condition_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR, data_type='GCMS')
 
         # cat = input('촉매 입력 NoCat PtC RuC RN')
         cat = 'NoCat'
 
         # target_temp = int(input('온도 입력 250 ~ 400'))
-        target_temp = 275
+        target_temp = [275]
 
-        TGA_bool = False
-        FTIR_bool = False
+        TGA_bool = True
+        FTIR_bool = True
         GCMS_bool = True
 
         if TGA_bool :
             augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp, device)
 
-        elif FTIR_bool :
-            augmented_FTIR_data = FTIR_augmentation(FTIR_data)
-        elif GCMS_bool :
+        if FTIR_bool :
+            augmented_FTIR_data = FTIR_augmentation(FTIR_data, target_temp, device)
+
+        if GCMS_bool :
 
             # 추출 파일이 없는 경우 추출을 진행
             if not(os.path.exists('dataset/GC-MS_to_csv/16.xls')) :
@@ -170,8 +171,11 @@ if __name__ == '__main__' :
 
 
             data = read_csv('dataset/combined_GCMS.csv')
-            prediction = GCMS_augmentation(data, cat, device)
+            prediction = GCMS_augmentation(data, cat, target_temp, device)
             # GCMS_RandomForest.process_and_train_tga_gcms()
+
+            plot_grouped_bar_chart(prediction, target_temp[0])
+
     else:
         TGA_model_path = 'tga.pth'
         TGA_model = ByproductPredictorCNN(1, 761).to(device)

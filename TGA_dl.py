@@ -71,7 +71,7 @@ def load_model(model, model_path, computer_device):
     """학습된 모델을 불러옵니다."""
     if os.path.exists(model_path):
         print(f"Loading model from {model_path}")
-        model.load_state_dict(torch.load(model_path))
+        model.load_state_dict(torch.load(model_path, weights_only=True))
         model.to(computer_device)
         model.eval()
         return True
