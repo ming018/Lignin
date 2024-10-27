@@ -63,7 +63,7 @@ def GCMS_augmentation(data, cat, target_temp, device):
     return predicted_composition
 
 def FTIR_augmentation(FTIR_data, target_temp, device):
-    MODEL_PATH = "FTIR_model.pth"
+    MODEL_PATH = "pth/FTIR_model.pth"
 
     preprocessed_data = preprocess_FTIR_data(FTIR_data)
     # 입력 및 출력 데이터 설정
@@ -93,7 +93,7 @@ def FTIR_augmentation(FTIR_data, target_temp, device):
     predict_and_plot(model, preprocessed_data, new_temperatures)
     return new_temperatures
 
-def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='tga.pth', train_new_model=True):
+def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='pth/tga.pth', train_new_model=True):
 
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp[0])
@@ -177,17 +177,17 @@ if __name__ == '__main__' :
             plot_grouped_bar_chart(prediction, target_temp[0])
 
     else:
-        TGA_model_path = 'tga.pth'
+        TGA_model_path = 'pth/tga.pth'
         TGA_model = ByproductPredictorCNN(1, 761).to(device)
         TGA_model.load_state_dict(torch.load(TGA_model_path, weights_only=True))
         TGA_model.eval()
 
-        FTIR_model_path = 'FTIR_model.pth'
+        FTIR_model_path = 'pth/FTIR_model.pth'
         FTIR_model = TemperatureToDataPredictorCNN(input_size=1).to(device)
         FTIR_model.load_state_dict(torch.load(FTIR_model_path, weights_only=True))
         FTIR_model.eval()
 
-        GCMS_model_path = 'composition_model.pth'
+        GCMS_model_path = 'pth/composition_model.pth'
         GCMS_model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to(device)
         GCMS_model.load_state_dict(torch.load(GCMS_model_path, weights_only=True))
         GCMS_model.eval()

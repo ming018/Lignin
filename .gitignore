@@ -3,6 +3,6 @@ dataset/GC-MS
 dataset/after_csv
 dataset/TGA
 
-tga.pth
-FTIR_model.pth
-composition_model.pth
+pth/tga.pth
+pth/FTIR_model.pth
+pth/composition_model.pth

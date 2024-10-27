@@ -355,9 +355,9 @@ def generate_data(data, model, desired_temps, device):
 if __name__ == '__main__':
     condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR)
 
-    tga_model_path = 'tga.pth'
-    ftir_model_path = 'FTIR_model.pth'
-    gcms_model_path = 'composition_model.pth'
+    tga_model_path = 'pth/tga.pth'
+    ftir_model_path = 'pth/FTIR_model.pth'
+    gcms_model_path = 'pth/composition_model.pth'
 
     cat = 'NoCat'
     target_temp = 275  # not for use

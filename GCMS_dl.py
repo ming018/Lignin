@@ -5,7 +5,7 @@ import torch
 import os
 
 def train_and_evaluate(model, temperatures, composition_data, target_temp, device, learning_rate=0.001, epochs=5000):
-    MODEL_PATH = "composition_model.pth"
+    MODEL_PATH = "pth/composition_model.pth"
 
     if os.path.exists(MODEL_PATH):
         print("Loading the existing model...")
