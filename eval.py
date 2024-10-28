@@ -28,7 +28,7 @@ from scipy.stats import pearsonr
 def calculate_ratio(target_temp, X1_temp, X2_temp):
     return (target_temp - X1_temp) / (X2_temp - X1_temp)
 
-
+# 예측값이 주어진 목표 온도와 그 근처의 온도 간의 비율을 얼마나 잘 따르는지를 평가
 def consistency_score(predictions, X1, X2, ratio):
     # 예측값과 기준 온도들 사이의 거리 계산
     D1 = np.linalg.norm(predictions - X1)
@@ -44,7 +44,7 @@ def consistency_score(predictions, X1, X2, ratio):
     consistency = 1 - abs(predicted_ratio - ratio)
     return consistency
 
-
+# 정확성과 일관성 평가 결과를 결합하여 하이브리드 점수를 계산합니다.
 def hybrid_score(predictions, X1, X2, ratio, alpha=0.5):
     # 정확성 평가 (MSE 사용)
     accuracy_mse = mean_squared_error(predictions, (X1 + X2) / 2)
@@ -57,38 +57,60 @@ def hybrid_score(predictions, X1, X2, ratio, alpha=0.5):
 
     return result
 
+# 주어진 목표 온도와 그에 맞는 예측값을 기준으로 정확성과 일관성을 계산해 최종 평가 점수를 도출
+def evaluate_predictions_with_ratio(results, data, alpha=0.8):
+    """
+    주어진 결과와 TGA 데이터를 비교하여 각 모델의 성능을 평가합니다.
 
-def evaluate_predictions_with_ratio(results, TGA_data, alpha=0.8):
-    evaluation_results = []
+    Parameters:
+    - results: 각 목표 온도에 대해 모델의 예측값을 포함한 리스트
+    - TGA_data: 250°C, 300°C, 350°C, 400°C에서의 실제 TGA 데이터
+    - alpha: 정확성과 일관성 간의 가중치를 조정하는 파라미터 (기본값 0.8)
+
+    Returns:
+    - evaluation_results: 각 목표 온도에 대한 모델 평가 점수를 포함한 리스트
+    """
+
+
+    # 이거 변수명이 TGA_data인데, GCMS_data가 맞는거 같아요오오오오오 여쭤보기
+
+
+    evaluation_results = []  # 최종 평가 결과를 저장할 리스트
 
     for result in results:
-        target_temp = result['temperature']  # result에 저장된 목표 온도
+        target_temp = result['temperature']  # result 딕셔너리에서 목표 온도를 가져옴
 
-        # 기준 온도와 데이터 설정
+        # 목표 온도에 따라 기준 온도와 해당하는 TGA 데이터를 설정
         if target_temp <= 300:
-            X1_temp, X2_temp = 250, 300
-            X1, X2 = TGA_data[0], TGA_data[1]  # 250도, 300도 데이터
+            X1_temp, X2_temp = 250, 300  # 기준 온도: 250°C, 300°C
+            X1, X2 = data[0], data[1]  # 해당 온도에서의 실제 TGA 데이터
+
         elif target_temp <= 350:
-            X1_temp, X2_temp = 300, 350
-            X1, X2 = TGA_data[1], TGA_data[2]  # 300도, 350도 데이터
+            X1_temp, X2_temp = 300, 350  # 기준 온도: 300°C, 350°C
+            X1, X2 = data[1], data[2]  # 해당 온도에서의 실제 TGA 데이터
+
         elif target_temp <= 400:
-            X1_temp, X2_temp = 350, 400
-            X1, X2 = TGA_data[2], TGA_data[3]  # 350도, 400도 데이터
+            X1_temp, X2_temp = 350, 400  # 기준 온도: 350°C, 400°C
+            X1, X2 = data[2], data[3]  # 해당 온도에서의 실제 TGA 데이터
+
         else:
+            # 목표 온도가 허용 범위를 벗어난 경우 예외 처리
             raise ValueError("Target temperature is out of range. Must be <= 400°C.")
 
+        # 목표 온도와 기준 온도들 간의 비율 계산
         ratio = calculate_ratio(target_temp, X1_temp, X2_temp)
 
-        models = result['models']
-        model_evaluations = {'temperature': target_temp, 'evaluations': {}}
+        models = result['models']  # result 딕셔너리에서 모델별 예측값을 가져옴
+        model_evaluations = {'temperature': target_temp, 'evaluations': {}}  # 평가 결과 저장을 위한 딕셔너리
 
+        # 각 모델의 예측값을 기반으로 성능 점수 계산
         for model_name, predictions in models.items():
-            score = hybrid_score(predictions, X1, X2, ratio, alpha)
-            model_evaluations['evaluations'][model_name] = score
+            score = hybrid_score(predictions, X1, X2, ratio, alpha)  # 하이브리드 점수 계산
+            model_evaluations['evaluations'][model_name] = score  # 모델 이름과 점수를 저장
 
-        evaluation_results.append(model_evaluations)
+        evaluation_results.append(model_evaluations)  # 최종 평가 결과 리스트에 추가
 
-    return evaluation_results
+    return evaluation_results, X1.reshape(1, 10), X2.reshape(1, 10) # 각 목표 온도와 모델별 평가 점수를 반환, 평가에 사용된 데이터들 반환
 
 
 # 정규화 함수
@@ -131,7 +153,6 @@ def rank_models(evaluation_results):
 
 
 # 모델별 결과 플롯 함수
-# 모델별 결과 플롯 함수 (실제 데이터 X를 추가하여 함께 플롯)
 def plot_results(results, X, option=None):
     """
     results 리스트를 받아서 각 온도에 대한 모델별 예측 결과를 플롯팅합니다.
@@ -275,6 +296,7 @@ def generate_data(data, model, desired_temps, device):
     time = np.arange(data.shape[1])
     X = []
     y = []
+
     temperatures = [250, 300, 350, 400]
 
     # 데이터 준비
@@ -352,21 +374,24 @@ def generate_data(data, model, desired_temps, device):
 
         results.append(temp_results)
 
-    plot_results(results, data, "TGA")
     return results
 
 
-def normalization_check_graph(data, y_label='Area %', y_lim=70, title='Bar Graph: normalization_check_graph', group_labels=None):
+def bar_graph(data, desired_temps, model_names, y_label='Area %', y_lim=70,
+              title='Bar Graph: normalization_check_graph'):
     """
-    normalization 데이터를 막대 그래프로 표현해서 시각적인체크 용도
+    GC-MS 데이터를 시각화하는 함수
     """
 
     categories = ['Syringyl', 'Guaiacyl', 'Poly aromatics (C10~C21)', 'Other aromatics (C6~C20)',
                   'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Glycerol derived', 'Other']
     colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'orange', 'black']
 
-    if group_labels is None:
-        group_labels = ['250°C', '300°C', '350°C', '400°C']
+    # 그룹 레이블을 설정 (온도와 모델명 포함)
+    group_labels = ['250°C', '300°C', f'{desired_temps}°C prediction'] + model_names
+
+    # 모델명이 길면 줄바꿈 적용 (optional)
+    group_labels = [label.replace(' ', '\n') for label in group_labels]
 
     x = np.arange(data.shape[0])  # 행 인덱스 (0, 1, 2, 3)
     width = 0.15  # 막대 폭
@@ -384,53 +409,18 @@ def normalization_check_graph(data, y_label='Area %', y_lim=70, title='Bar Graph
     plt.ylabel(y_label)
     plt.ylim(0, y_lim)  # y축 범위 설정
     plt.title(title)
-    plt.xticks(x * (1 + spacing) + (width * 5), group_labels)  # 그룹 레이블 설정
+
+    # x축 레이블을 45도로 기울여서 표시
+    plt.xticks(x * (1 + spacing) + (width * 5), group_labels, rotation=45, ha="right")  # x축 레이블을 기울이고 오른쪽 정렬
+
     plt.legend(title='Categories')
     plt.grid(True)
 
-    # 그래프 출력
-    plt.show()
-
-def bar_graph2(data, desired_temps, y_label='Area %', y_lim=70, title='Bar Graph: normalization_check_graph', group_labels=None):
-    """
-    normalization 데이터를 막대 그래프로 표현해서 시각적인체크 용도
-    """
-
-    categories = ['Syringyl', 'Guaiacyl', 'Poly aromatics (C10~C21)', 'Other aromatics (C6~C20)',
-                  'Alkanes', 'Cyclic', 'Fatty Acids', 'Alcohol', 'Glycerol derived', 'Other']
-    colors = ['red', 'blue', 'yellow', 'green', 'purple', 'gray', 'pink', 'lightblue', 'orange', 'black']
-
-    if group_labels is None:
-        group_labels = ['250°C', '300°C', '350°C', '400°C', f'{desired_temps}°C prediction']
-
-    x = np.arange(data.shape[0])  # 행 인덱스 (0, 1, 2, 3)
-    width = 0.15  # 막대 폭
-    spacing = 1.0  # 그룹 간 간격
-
-    # 막대그래프 생성
-    plt.figure(figsize=(10, 6))
-
-    # 각 열에 대해 막대그래프 그리기
-    for i in range(data.shape[1]):
-        plt.bar(x * (1 + spacing) + i * width, data[:, i] * 100, width, label=categories[i], color=colors[i])
-
-    # 그래프 레이블 및 제목 설정
-    plt.xlabel('')
-    plt.ylabel(y_label)
-    plt.ylim(0, y_lim)  # y축 범위 설정
-    plt.title(title)
-    plt.xticks(x * (1 + spacing) + (width * 5), group_labels)  # 그룹 레이블 설정
-    plt.legend(title='Categories')
-    plt.grid(True)
+    # 그래프 출력 전에 tight_layout()을 추가하여 여백 조정
+    plt.tight_layout()
 
     # 그래프 출력
     plt.show()
-
-"""
-GCMS interpolation한 값이 합이 1이 안되기 때문에
-cross-entrophy전에 e넣으면 된다?
-"""
-
 
 
 if __name__ == '__main__':
@@ -515,15 +505,23 @@ if __name__ == '__main__':
 
     combined_data = np.array(combined_data)
 
-    # 일반화 체크 용
-    normalization_check_graph(combined_data)
-
+    # 모델 정의
     model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to(device)
+
+    # 모델 가중치 로드
     load_model(model, gcms_model_path, device)
+
+    # 예측, 모델을 사용하여 주어진 온도에 대해 예측된 화합물 조성을 계산한 결과를 반환
     result = generate_data(combined_data, model, desired_temps, device)
-    evaluation_results = evaluate_predictions_with_ratio(result, combined_data)
+
+    # 모델이 평가한 예측
+    evaluation_results, X1, X2 = evaluate_predictions_with_ratio(result, combined_data)
+
+    # 평가 결과를 기반으로 모델의 성능을 순위로 나열
     ranked_models = rank_models(evaluation_results)
-    print("FTIR 모델 순위:", ranked_models)
+
+
+    print("모델 순위:", ranked_models)
 
     # 예측할 온도 설정
     desired_temps = np.array([[275.0]])
@@ -531,5 +529,9 @@ if __name__ == '__main__':
     # 모델을 이용해 예측 수행
     predicted_byproducts = evaluate_model(model, device, desired_temps)
 
+    # 모델명과 예측값을 각각 저장
+    model_names = [model_name for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model']
+    predictions_np = np.array([predictions for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model'])
+
     # 예측 결과 출력
-    bar_graph2(np.vstack((combined_data, predicted_byproducts)), desired_temps[0][0])
+    bar_graph(np.vstack((X1, X2, predicted_byproducts, predictions_np)), desired_temps[0][0], model_names)

@@ -30,7 +30,6 @@ from GCMS import GCMS_add_Condition, GCMS_combine, GCMS_RandomForest
 from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval, \
     group_and_average_data, group_preprocessed_data, clip_data_to_100, process_data_with_log
 
-
 # 0 Time
 # 1 Temperature
 # 2 Weight
