@@ -9,19 +9,40 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 import GCMS_to_csv
 import data_loader
 from GCMS import GCMS_add_Condition, GCMS_combine
-from TGA_dl import process_TGA_data, load_model, smooth_data
+from TGA_dl import load_model, smooth_data
 from FTIR_dl import preprocess_FTIR_data
+from main import TGA_augmentation
 from models.ByproductPredictorCNN import ByproductPredictorCNN
 from models.TemperatureToCompositionPredictor import TemperatureToCompositionPredictor
 from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from models.ml import polynomial_regression, random_forest, support_vector_regression, k_nearest_neighbors, \
-    linear_regression
+    linear_regression, compare_models
 
 from scipy.interpolate import griddata, PchipInterpolator, Akima1DInterpolator, Rbf
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import MinMaxScaler
+from scipy.signal import savgol_filter
 
 from scipy.stats import pearsonr
+
+from preprocessing import reduce_by_temperature, interpolate_temperature, reduce_to_one_degree_interval
+
+
+def process_TGA_data(TGA_data, cat, target_temp):
+    """입력 값에 따라 TGA 데이터를 처리하고 보간을 진행."""
+    # 데이터 처리 및 보간
+    from TGA import group
+    data_for_return, temp1, temp2 = group.process_group_for_TGA(TGA_data, cat, target_temp)
+    data = [reduce_by_temperature(d) for d in data_for_return]
+
+    print()
+
+    # 0: 온도, 1: Weight%, 2: deriv. Weight
+    data = [interpolate_temperature(d, 40, 800) for d in data]
+
+    data = [reduce_to_one_degree_interval(d) for d in data]
+
+    return np.array(data), temp1, temp2
 
 
 # 온도 간의 비율 계산
@@ -110,15 +131,35 @@ def evaluate_predictions_with_ratio(results, data, alpha=0.8):
 
         evaluation_results.append(model_evaluations)  # 최종 평가 결과 리스트에 추가
 
-    return evaluation_results, X1.reshape(1, 10), X2.reshape(1, 10) # 각 목표 온도와 모델별 평가 점수를 반환, 평가에 사용된 데이터들 반환
+    return evaluation_results, X1.reshape(1, data.shape[1]), X2.reshape(1, data.shape[1]) # 각 목표 온도와 모델별 평가 점수를 반환, 평가에 사용된 데이터들 반환
 
 
 # 정규화 함수
-def normalize(values):
-    min_val = np.min(values)
-    max_val = np.max(values)
-    return [(v - min_val) / (max_val - min_val) if max_val != min_val else 0 for v in values]
+def normalize():
+    data = read_csv('dataset/combined_GCMS.csv')
+    data = data[data['Catalyst'] == cat]
+    temps = [250, 300, 350, 400]
 
+    combined_data = []
+
+    for temp in temps:
+        # 현재 온도에 해당하는 데이터 선택
+        temp_data = data[data['temp'] == temp]
+
+        # 'Value' 열에서 필요한 데이터를 추출하고, 마지막 값 제외
+        values = temp_data['Value'].values[:-1]
+
+        # 값의 범위가 너무 크면, 스케일을 줄이기 위한 정규화 적용 (예: 값을 로그 스케일로 변환)
+        scaled_values = np.log1p(values)  # 로그 변환으로 큰 값을 줄이는 방식
+
+        # 소프트맥스 적용 (안정성을 위해 최대값을 빼는 방식 사용)
+        exp_values = np.exp(scaled_values - np.max(scaled_values))
+        softmax_values = exp_values / np.sum(exp_values)
+
+        # 결과를 리스트에 추가
+        combined_data.append(softmax_values)
+
+    return np.array(combined_data)
 
 def rank_models(evaluation_results):
     """
@@ -290,7 +331,7 @@ def akima_interpolation(X, y, X_pred):
 
 
 # 데이터 생성 함수 (모델 학습 및 보간 적용)
-def generate_data(data, model, desired_temps, device):
+def generate_data_GCMS(data, model, desired_temps, device):
     results = []  # 결과를 저장할 리스트
 
     time = np.arange(data.shape[1])
@@ -376,9 +417,137 @@ def generate_data(data, model, desired_temps, device):
 
     return results
 
+# 데이터 생성 함수 (모델 학습 및 보간 적용)
+def generate_data_TGA(tga_data, data, model, desired_temps, cat, temps, device):
+    catalyst = {
+        "NoCat": 0,
+        "PtC": 1,
+        "RuC": 2,
+        "RN": 3
+    }
+    results = []  # 결과를 저장할 리스트
 
-def bar_graph(data, desired_temps, model_names, y_label='Area %', y_lim=70,
-              title='Bar Graph: normalization_check_graph'):
+    time = np.arange(tga_data.shape[1])
+    X = []
+    y = []
+
+    temperatures = [250, 300, 350, 400]
+
+    # 데이터 준비
+    for idx, t in enumerate(time):
+        for i, temp in enumerate(temperatures):
+            X.append([temp, t])
+            y.append(tga_data[i][idx])
+
+    X = np.array(X)
+    y = np.array(y)
+
+    # 여러 온도 조건에서 예측
+    for desired_temp in desired_temps:
+
+        if desired_temp in [250, 300, 350, 400]:
+            continue
+
+        if isinstance(desired_temp, (int, float)):
+            X_pred = np.array([[desired_temp, t] for t in time])
+        else:
+            X_pred = np.array([[temp, t] for temp in desired_temp for t in time])
+
+        temp_results = {'temperature': desired_temp, 'models': {}}
+
+        # 선형 회귀
+        y_pred = linear_regression(X, y, X_pred)
+        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        temp_results['models']['Linear Regression'] = y_pred
+
+        # 다항 회귀
+        y_pred = polynomial_regression(X, y, X_pred, degree=3)
+        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        temp_results['models']['Polynomial Regression (degree=3)'] = y_pred
+
+        # 랜덤 포레스트
+        y_pred = random_forest(X, y, X_pred)
+        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        temp_results['models']['Random Forest'] = y_pred
+
+        # # 서포트 벡터 회귀
+        # y_pred = support_vector_regression(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['SVR'] = y_pred
+
+        # K-최근접 이웃
+        y_pred = k_nearest_neighbors(X, y, X_pred, n_neighbors=5)
+        y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        temp_results['models']['K-Nearest Neighbors'] = y_pred
+
+        # # Linear Spline
+        # y_pred = linear_spline_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['Linear Spline'] = y_pred
+
+
+        # # PCHIP 보간
+        # y_pred = pchip_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['PCHIP Interpolation'] = y_pred
+        #
+        # # RBF 보간
+        # y_pred = rbf_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['RBF Interpolation'] = y_pred
+        #
+        # # Akima 보간
+        # y_pred = akima_interpolation(X, y, X_pred)
+        # y_pred = np.clip(y_pred, None, 0.2)  # 0.2로 값 제한
+        # temp_results['models']['Akima Interpolation'] = y_pred
+
+        if model is not None and device is not None:
+            torch_pred = evaluate_model(model, device, [desired_temp])
+            torch_pred = np.clip(torch_pred.flatten(), None, 0.2)  # 0.2로 값 제한
+            temp_results['models']['PyTorch Model'] = torch_pred
+
+        results.append(temp_results)
+
+    return results
+
+
+def plt_tga(data, desired_temp, model_names, window_length=4, polyorder=3):
+    """
+    여러 배열 데이터를 주어진 레이블과 함께 그래프로 시각화하는 함수 (스무딩 적용).
+
+    Args:
+    data (numpy array): 수직으로 쌓인 배열 (shape: (n, m), n은 데이터셋 개수, m은 각 데이터셋의 길이)
+    desired_temp (float or int): 원하는 온도, 그래프 제목이나 주석 등에 활용
+    model_names (list of str): 각 데이터셋의 이름을 라벨로 사용
+    window_length (int): 스무딩 윈도우의 길이 (홀수)
+    polyorder (int): 다항식 차수
+    """
+    # x축에 사용할 인덱스 생성
+    x_values = np.arange(data.shape[1])
+
+    # 모델 레이블을 설정 (온도와 모델명 포함)
+    group_labels = ['250°C', '300°C', f'{desired_temp}°C prediction'] + model_names
+
+    # 그래프 그리기
+    plt.figure(figsize=(10, 6))
+
+    # 각 데이터셋에 대해 플롯을 그립니다 (스무딩 적용)
+    for i in range(data.shape[0]):
+        # Savitzky-Golay 필터를 이용해 스무딩 처리
+        smoothed_data = savgol_filter(data[i], window_length, polyorder)
+        plt.plot(x_values, np.abs(smoothed_data), label=group_labels[i])
+
+    # 그래프의 제목, 축 라벨 및 범례 추가
+    plt.title('')
+    plt.xlabel('Temperature T (°C)')
+    plt.ylabel('Weight (%)')
+    plt.legend()
+
+    # 그래프 보여주기
+    plt.show()
+
+
+def bar_graph(data, desired_temps, model_names, y_label='Area %', y_lim=70, title='Bar Graph: normalization_check_graph'):
     """
     GC-MS 데이터를 시각화하는 함수
     """
@@ -431,18 +600,121 @@ if __name__ == '__main__':
     gcms_model_path = 'pth/composition_model.pth'
 
     cat = 'NoCat'
-    target_temp = 275  # not for use
+    # target_temp = 275  # not for use
 
     # GPU 유무에 따라서 cuda or cpu 설정
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    # desired_temps = np.arange(250, 401, 10, dtype=np.float32).reshape(-1, 1)
-    desired_temps = np.array([[275]])
+    # 예측할 온도 설정
+    desired_temps = np.array([[275.0]])
 
     '''
     process_data => Load CNN => load_model
     => generate => sample => results => rank
+    
+    * 이 아래에 있던 주석은 main 함수 아래로 이동 됐습니다. *
     '''
+
+
+    TGA = True
+    GCMS = False
+
+    if TGA :
+        # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
+        processed_data, temp1, temp2 = process_TGA_data(TGA_data, cat, desired_temps[0])
+
+        # 모델 정의
+        model = ByproductPredictorCNN(1, 761).to(device)
+
+        # 모델 가중치 로드
+        load_model(model, tga_model_path, device)
+
+        # 예측, 모델을 사용하여 주어진 온도에 대해 예측된 화합물 조성을 계산한 결과를 반환
+        # data = generate_data_TGA(np.array(set(np.array(TGA_data[0][0], dtype=int))), model, desired_temps, device)
+        temperatures = list(set(np.array(TGA_data[0][0], dtype=int)))
+
+        # 모델 평가 ######## Taget 온도 바꾸려면 여기
+        predicted_byproducts = evaluate_model(model, device, desired_temps)
+
+        # Gaussian smoothing 적용
+        predicted_byproducts_smoothed = smooth_data(predicted_byproducts, sigma=2)
+
+        #generate_data_TGA()
+
+        # 제너레이터를 리스트로 변환
+        combine_tga_data = np.asarray([processed_data[i][2] for i in range(4)])
+
+        # np.vstack에 리스트 전달
+        result = generate_data_TGA(np.vstack(combine_tga_data), predicted_byproducts, model, desired_temps, cat, [temp1, temp2], device)
+
+        # 모델이 평가한 예측
+        evaluation_results, X1, X2 = evaluate_predictions_with_ratio(result, combine_tga_data)
+
+        # 평가 결과를 기반으로 모델의 성능을 순위로 나열
+        ranked_models = rank_models(evaluation_results)
+
+        print("모델 순위:", ranked_models)
+
+        # 모델을 이용해 예측 수행
+        predicted_byproducts = evaluate_model(model, device, desired_temps)
+
+        # 모델명과 예측값을 각각 저장
+        model_names = [model_name for model_name, predictions in result[0]['models'].items() if
+                       model_name != 'PyTorch Model']
+        predictions_np = np.array([predictions for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model'])
+
+        # 예측 결과 출력
+        plt_tga(np.vstack((X1, X2, predicted_byproducts, predictions_np)), desired_temps[0][0], model_names)
+
+
+    if GCMS :
+        # 추출 파일이 없는 경우 추출을 진행
+        if not (os.path.exists('dataset/GC-MS_to_csv/16.xls')):
+            GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
+
+            # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
+            path = 'dataset/GC-MS_to_csv/'
+            GCMS_add_Condition.process_csv_files_in_directory(path)
+
+        # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
+        # 없는 경우 합친 파일 생성 후 할당
+
+
+        if not (os.path.exists('dataset/combined_GCMS.csv')):
+            GCMS_combine.combine_csv_files()
+
+        combined_data = normalize()
+
+        # 모델 정의
+        model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to(device)
+
+        # 모델 가중치 로드
+        load_model(model, gcms_model_path, device)
+
+        # 예측, 모델을 사용하여 주어진 온도에 대해 예측된 화합물 조성을 계산한 결과를 반환
+        result = generate_data_GCMS(combined_data, model, desired_temps, device)
+
+        # 모델이 평가한 예측
+        evaluation_results, X1, X2 = evaluate_predictions_with_ratio(result, combined_data)
+
+        # 평가 결과를 기반으로 모델의 성능을 순위로 나열
+        ranked_models = rank_models(evaluation_results)
+
+        print("모델 순위:", ranked_models)
+
+
+        # 모델을 이용해 예측 수행
+        predicted_byproducts = evaluate_model(model, device, desired_temps)
+
+        # 모델명과 예측값을 각각 저장
+        model_names = [model_name for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model']
+        predictions_np = np.array([predictions for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model'])
+
+        # 예측 결과 출력
+        bar_graph(np.vstack((X1, X2, predicted_byproducts, predictions_np)), desired_temps[0][0], model_names)
+
+
+
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     # TGA_data, _, _ = process_TGA_data(TGA_data, cat, target_temp)
     # model = ByproductPredictorCNN(1, 761).to('cuda')  # ByproductPredictorCNN 사용
@@ -464,74 +736,3 @@ if __name__ == '__main__':
     # ranked_models = rank_models(evaluation_results)
     # print("FTIR 모델 순위:", ranked_models)
     # print("Data generation and plotting completed.")
-
-    # 추출 파일이 없는 경우 추출을 진행
-    if not (os.path.exists('dataset/GC-MS_to_csv/16.xls')):
-        GCMS_to_csv.process_and_export_gcms_data(GCMS_data)
-
-        # 파일명에 따라 촉매, 전처리 온도 컬럼을 추가
-        path = 'dataset/GC-MS_to_csv/'
-        GCMS_add_Condition.process_csv_files_in_directory(path)
-
-    # GC-MS pdf에서 추출하여 합친 파일이 있는 경우 그대로 읽어와서 할당
-    # 없는 경우 합친 파일 생성 후 할당
-    if not (os.path.exists('dataset/combined_GCMS.csv')):
-        GCMS_combine.combine_csv_files()
-
-    data = read_csv('dataset/combined_GCMS.csv')
-    data = data[data['Catalyst'] == cat]
-    temps = [250, 300, 350, 400]
-
-
-    # 이하, normalization
-    combined_data = []
-
-    for temp in temps:
-        # 현재 온도에 해당하는 데이터 선택
-        temp_data = data[data['temp'] == temp]
-
-        # 'Value' 열에서 필요한 데이터를 추출하고, 마지막 값 제외
-        values = temp_data['Value'].values[:-1]
-
-        # 값의 범위가 너무 크면, 스케일을 줄이기 위한 정규화 적용 (예: 값을 로그 스케일로 변환)
-        scaled_values = np.log1p(values)  # 로그 변환으로 큰 값을 줄이는 방식
-
-        # 소프트맥스 적용 (안정성을 위해 최대값을 빼는 방식 사용)
-        exp_values = np.exp(scaled_values - np.max(scaled_values))
-        softmax_values = exp_values / np.sum(exp_values)
-
-        # 결과를 리스트에 추가
-        combined_data.append(softmax_values)
-
-    combined_data = np.array(combined_data)
-
-    # 모델 정의
-    model = TemperatureToCompositionPredictor(input_size=1,output_size=10).to(device)
-
-    # 모델 가중치 로드
-    load_model(model, gcms_model_path, device)
-
-    # 예측, 모델을 사용하여 주어진 온도에 대해 예측된 화합물 조성을 계산한 결과를 반환
-    result = generate_data(combined_data, model, desired_temps, device)
-
-    # 모델이 평가한 예측
-    evaluation_results, X1, X2 = evaluate_predictions_with_ratio(result, combined_data)
-
-    # 평가 결과를 기반으로 모델의 성능을 순위로 나열
-    ranked_models = rank_models(evaluation_results)
-
-
-    print("모델 순위:", ranked_models)
-
-    # 예측할 온도 설정
-    desired_temps = np.array([[275.0]])
-
-    # 모델을 이용해 예측 수행
-    predicted_byproducts = evaluate_model(model, device, desired_temps)
-
-    # 모델명과 예측값을 각각 저장
-    model_names = [model_name for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model']
-    predictions_np = np.array([predictions for model_name, predictions in result[0]['models'].items() if model_name != 'PyTorch Model'])
-
-    # 예측 결과 출력
-    bar_graph(np.vstack((X1, X2, predicted_byproducts, predictions_np)), desired_temps[0][0], model_names)

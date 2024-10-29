@@ -56,7 +56,7 @@ def GCMS_augmentation(data, cat, target_temp, device):
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
     temperature_data = torch.tensor(temperature_data).unsqueeze(1).to(device)
     composition_data = torch.tensor(combined_data / 100, dtype=torch.float32).to(device)
-    compare_models(composition_data.detach().cpu().numpy())
+    compare_models(composition_data.detach().cpu().numpy(), target_temp[0])
     model = TemperatureToCompositionPredictor(input_size=1, output_size=10).to(device)
     predicted_composition = GCMS_train_and_evaluate(model, temperature_data, composition_data, target_temp, device)
     return predicted_composition
@@ -69,7 +69,7 @@ def FTIR_augmentation(FTIR_data, target_temp, device):
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
     output_data = preprocessed_data[0][:, 1, :]  # (4, 3476) 형태의 데이터
 
-    compare_models(np.asarray(output_data))
+    compare_models(np.asarray(output_data), target_temp[0], True)
 
     # PyTorch 텐서로 변환
     temperatures = torch.tensor(temperature_data).unsqueeze(1).to(device)  # (batch_size, 1, 1)
@@ -94,11 +94,12 @@ def FTIR_augmentation(FTIR_data, target_temp, device):
 
 def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='pth/tga.pth', train_new_model=True):
 
+
     # 입력 값에 따라 1 ~ 16.xls 중 필요한 파일 선정 및 온도 설정
     data, temp1, temp2 = process_TGA_data(TGA_data, cat, target_temp[0])
     # 모델 정의
 
-    compare_models(np.asarray(data)[:,2,:])
+    compare_models(np.asarray(data)[:,2,:], 1, target_temp[0])
 
     model = ByproductPredictorCNN(1, 761)
 
@@ -123,6 +124,7 @@ def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='pth/tga.pth
 if __name__ == '__main__' :
 
     flag = True
+
     '''
     True  : Augmentation
     False : FTIR + TGA to GCMS 

@@ -52,11 +52,11 @@ def plot_results(time, y_pred, y_std=None, model_name='Model'):
 
 
 
-def compare_models(data):
+def compare_models(data, target_temp, prediction, FTIR=False):
     plt.figure(figsize=(12, 8))
 
     time = np.arange(data.shape[1])
-    desired_temp = 325
+    # desired_temp = target_temp
     X = []
     y = []
     temperatures = [250, 300, 350, 400]
@@ -65,40 +65,45 @@ def compare_models(data):
             X.append([temp, t])
             y.append(data[i][idx])
 
-    X_pred = np.array([[desired_temp, t] for t in time])
+    X_pred = np.array([[target_temp, t] for t in time])
 
     # 선형 회귀
     y_pred = linear_regression(X, y, X_pred)
-    plot_results(time, y_pred, model_name='Linear Regression')
+    plot_results(time, np.abs(y_pred), model_name='Linear Regression')
 
     # 다항 회귀
     y_pred = polynomial_regression(X, y, X_pred, degree=3)
-    plot_results(time, y_pred, model_name='Polynomial Regression (degree=3)')
+    plot_results(time, np.abs(y_pred), model_name='Polynomial Regression (degree=3)')
 
     # 랜덤 포레스트
     y_pred = random_forest(X, y, X_pred)
-    plot_results(time, y_pred, model_name='Random Forest')
+    plot_results(time, np.abs(y_pred), model_name='Random Forest')
 
     # 가우시안 프로세스
     # y_pred, y_std = gaussian_process(X, y, X_pred)
     # plot_results(time, y_pred, y_std, model_name='Gaussian Process')
 
-    # 서포트 벡터 회귀
-    y_pred = support_vector_regression(X, y, X_pred)
-    plot_results(time, y_pred, model_name='SVR')
+    # # 서포트 벡터 회귀
+    # y_pred = support_vector_regression(X, y, X_pred)
+    # plot_results(time, y_pred, model_name='SVR')
 
     # K-최근접 이웃
     y_pred = k_nearest_neighbors(X, y, X_pred, n_neighbors=5)
-    plot_results(time, y_pred, model_name='K-Nearest Neighbors')
+    plot_results(time, np.abs(y_pred), model_name='K-Nearest Neighbors')
 
     #plot_grouped_bar_chart()
 
     # 실제 온도 데이터 시각화
     for i,temp in enumerate(temperatures):
-        plt.plot(time, data[i], linestyle='--', label=f'Observed at {temp}K')
+        plt.plot(time, np.abs(data[i]), linestyle='--', label=f'Observed at {temp}K')
 
     plt.xlabel('Time')
     plt.ylabel('Value')
     plt.title('Comparison of Machine Learning Models')
     plt.legend()
-    plt.show()
+
+    # FTIR이 True인 경우 y축 반전
+    if FTIR:
+        plt.gca().invert_yaxis()  # y축을 반전시킴
+
+    # plt.show()

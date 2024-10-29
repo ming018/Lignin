@@ -82,7 +82,7 @@ def evaluate_model(model, computer_device):
     """새로운 온도에서 모델을 평가하고 결과를 반환."""
     model.eval()
     with torch.no_grad():
-        new_temperatures = torch.tensor([[260], [320], [370], [420]], dtype=torch.float).to(computer_device)
+        new_temperatures = torch.tensor([[275]], dtype=torch.float).to(computer_device)
         new_temperatures = new_temperatures.unsqueeze(1)
         predicted_byproducts = model(new_temperatures)
 
