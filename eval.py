@@ -510,8 +510,8 @@ def generate_data_TGA(tga_data, data, model, desired_temps, cat, temps, device):
 
     return results
 
-
-def plt_tga(data, desired_temp, model_names, window_length=4, polyorder=3):
+# def plt_tga(data, desired_temp, model_names, window_length=4, polyorder=3):
+def plt_tga(data, desired_temp, model_names):
     """
     여러 배열 데이터를 주어진 레이블과 함께 그래프로 시각화하는 함수 (스무딩 적용).
 
@@ -531,11 +531,16 @@ def plt_tga(data, desired_temp, model_names, window_length=4, polyorder=3):
     # 그래프 그리기
     plt.figure(figsize=(10, 6))
 
-    # 각 데이터셋에 대해 플롯을 그립니다 (스무딩 적용)
+    # 각 데이터셋에 대해 플롯을 그립니다
     for i in range(data.shape[0]):
-        # Savitzky-Golay 필터를 이용해 스무딩 처리
-        smoothed_data = savgol_filter(data[i], window_length, polyorder)
-        plt.plot(x_values, np.abs(smoothed_data), label=group_labels[i])
+        if i >= 2:
+            # i가 2일 때부터는 투명도를 적용
+            alpha_value = 0.5
+        else:
+            # i가 2 미만일 때는 기본 투명도 (1.0)
+            alpha_value = 1.0
+
+        plt.plot(x_values, np.abs(data[i]), label=group_labels[i], alpha=alpha_value)
 
     # 그래프의 제목, 축 라벨 및 범례 추가
     plt.title('')
