@@ -130,6 +130,8 @@ def group_and_average_data(data_list):
         # 결과 저장 (주파수와 광 투과율 평균값을 한 쌍으로)
         processed_data.append((avg_freq, avg_transmittance))
 
+
+
     return processed_data
 
 

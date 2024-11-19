@@ -1,10 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
-import numpy as np
+from torch.utils.data import Dataset
+from torchviz import make_dot
 
-# 사용자 정의 Dataset 클래스
+
+# Dataset 클래스 정의
 class ByproductDataset(Dataset):
     def __init__(self, temperature_data, byproduct_data):
         """
@@ -21,6 +21,7 @@ class ByproductDataset(Dataset):
         temperature = self.temperature_data[idx]
         byproduct = self.byproduct_data[idx]
         return temperature, byproduct
+
 
 # CNN 모델 정의
 class ByproductPredictorCNN(nn.Module):
@@ -39,3 +40,25 @@ class ByproductPredictorCNN(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.fc2(x)
         return x
+
+model = ByproductPredictorCNN(1, 761)
+
+print(repr(model))
+
+
+# 입력 크기와 출력 크기 설정
+input_size = 1 # 예시 입력 크기 (변경 가능)
+output_size = 761  # 예시 출력 크기 (변경 가능)
+
+# 모델 인스턴스 생성
+model = ByproductPredictorCNN(input_size=input_size, output_size=output_size)
+
+# 임의의 샘플 입력 데이터 생성 (배치 크기 1, 채널 1, 입력 길이 input_size)
+sample_input = torch.randn(1, 1, input_size)
+
+# 모델의 출력 계산
+output = model(sample_input)
+
+# 모델의 계산 그래프 시각화
+graph = make_dot(output, params=dict(model.named_parameters()))
+graph.render("byproduct_predictor_cnn", format="png")  # PNG 파일로 저장

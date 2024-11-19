@@ -52,7 +52,7 @@ def plot_results(time, y_pred, y_std=None, model_name='Model'):
 
 
 
-def compare_models(data, target_temp, prediction, FTIR=False):
+def compare_models(data, target_temp, FTIR=False):
     plt.figure(figsize=(12, 8))
 
     time = np.arange(data.shape[1])
@@ -79,19 +79,13 @@ def compare_models(data, target_temp, prediction, FTIR=False):
     y_pred = random_forest(X, y, X_pred)
     plot_results(time, np.abs(y_pred), model_name='Random Forest')
 
-    # 가우시안 프로세스
-    # y_pred, y_std = gaussian_process(X, y, X_pred)
-    # plot_results(time, y_pred, y_std, model_name='Gaussian Process')
-
-    # # 서포트 벡터 회귀
-    # y_pred = support_vector_regression(X, y, X_pred)
-    # plot_results(time, y_pred, model_name='SVR')
+    # 서포트 벡터 회귀
+    y_pred = support_vector_regression(X, y, X_pred)
+    plot_results(time, y_pred, model_name='SVR')
 
     # K-최근접 이웃
     y_pred = k_nearest_neighbors(X, y, X_pred, n_neighbors=5)
     plot_results(time, np.abs(y_pred), model_name='K-Nearest Neighbors')
-
-    #plot_grouped_bar_chart()
 
     # 실제 온도 데이터 시각화
     for i,temp in enumerate(temperatures):
@@ -106,4 +100,4 @@ def compare_models(data, target_temp, prediction, FTIR=False):
     if FTIR:
         plt.gca().invert_yaxis()  # y축을 반전시킴
 
-    # plt.show()
+    plt.show()

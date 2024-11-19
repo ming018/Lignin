@@ -1,0 +1,66 @@
+digraph {
+	graph [size="12,12"]
+	node [align=left fontname=monospace fontsize=10 height=0.2 ranksep=0.1 shape=box style=filled]
+	4533479760 [label="
+ (1, 761)" fillcolor=darkolivegreen1]
+	5962571296 [label=AddmmBackward0]
+	5962571008 -> 5962571296
+	4533479920 [label="fc2.bias
+ (761)" fillcolor=lightblue]
+	4533479920 -> 5962571008
+	5962571008 [label=AccumulateGrad]
+	5962571104 -> 5962571296
+	5962571104 [label=ReluBackward0]
+	5962571152 -> 5962571104
+	5962571152 [label=AddmmBackward0]
+	5962570768 -> 5962571152
+	4533480240 [label="fc1.bias
+ (1024)" fillcolor=lightblue]
+	4533480240 -> 5962570768
+	5962570768 [label=AccumulateGrad]
+	5962570816 -> 5962571152
+	5962570816 [label=ViewBackward0]
+	5962570672 -> 5962570816
+	5962570672 [label=ReluBackward0]
+	5962205744 -> 5962570672
+	5962205744 [label=ConvolutionBackward0]
+	5962570528 -> 5962205744
+	5962570528 [label=ReluBackward0]
+	5962707248 -> 5962570528
+	5962707248 [label=ConvolutionBackward0]
+	5962707344 -> 5962707248
+	4533480480 [label="conv1.weight
+ (16, 1, 3)" fillcolor=lightblue]
+	4533480480 -> 5962707344
+	5962707344 [label=AccumulateGrad]
+	5962707296 -> 5962707248
+	4533480400 [label="conv1.bias
+ (16)" fillcolor=lightblue]
+	4533480400 -> 5962707296
+	5962707296 [label=AccumulateGrad]
+	5962707056 -> 5962205744
+	4533480160 [label="conv2.weight
+ (32, 16, 3)" fillcolor=lightblue]
+	4533480160 -> 5962707056
+	5962707056 [label=AccumulateGrad]
+	5962707008 -> 5962205744
+	4533480080 [label="conv2.bias
+ (32)" fillcolor=lightblue]
+	4533480080 -> 5962707008
+	5962707008 [label=AccumulateGrad]
+	5962571200 -> 5962571152
+	5962571200 [label=TBackward0]
+	5962570480 -> 5962571200
+	4533480320 [label="fc1.weight
+ (1024, 32)" fillcolor=lightblue]
+	4533480320 -> 5962570480
+	5962570480 [label=AccumulateGrad]
+	5962571056 -> 5962571296
+	5962571056 [label=TBackward0]
+	5962570576 -> 5962571056
+	4533480000 [label="fc2.weight
+ (761, 1024)" fillcolor=lightblue]
+	4533480000 -> 5962570576
+	5962570576 [label=AccumulateGrad]
+	5962571296 -> 4533479760
+}

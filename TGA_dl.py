@@ -78,6 +78,29 @@ def load_model(model, model_path, computer_device):
     return False
 
 
+def load_model_ignore_mismatch(model, model_path, computer_device):
+    """레이어 크기 불일치를 무시하고 가중치를 로드하는 함수."""
+    if os.path.exists(model_path):
+        print(f"Loading model from {model_path}")
+        state_dict = torch.load(model_path, map_location=computer_device)
+
+        # 현재 모델의 state_dict와 불일치하는 키 제거
+        model_state_dict = model.state_dict()
+        filtered_state_dict = {
+            k: v for k, v in state_dict.items() if k in model_state_dict and model_state_dict[k].shape == v.shape
+        }
+
+        # 필터링된 state_dict 로드
+        model.load_state_dict(filtered_state_dict, strict=False)
+
+        print("Model loaded with potential missing keys.")
+        model.to(computer_device)
+        model.eval()
+        return True
+    else:
+        print(f"Model path {model_path} not found.")
+        return False
+
 def evaluate_model(model, computer_device):
     """새로운 온도에서 모델을 평가하고 결과를 반환."""
     model.eval()
