@@ -46,3 +46,5 @@ def predict_and_plot(model, preprocessed_data, new_temperatures):
         plt.plot(100 - np.exp(predicted_new_outputs[0].cpu().detach().numpy()))
         plt.show()
         print("A")
+
+    return predicted_new_outputs

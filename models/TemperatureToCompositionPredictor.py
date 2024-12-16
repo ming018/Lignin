@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
+from torchsummary import summary
+from torchviz import make_dot
+
 
 # Fully Connected Neural Network with Softmax output for percentage prediction
 class TemperatureToCompositionPredictor(nn.Module):
@@ -29,3 +31,26 @@ class TemperatureToCompositionPredictor(nn.Module):
         x = self.relu(self.fc1(x))
         x = self.softmax(self.fc2(x))  # Output is a percentage (sum to 1)
         return x
+
+
+# model = TemperatureToCompositionPredictor()
+# print(repr(model))
+#
+#
+# # 입력 크기와 출력 크기 설정
+# input_size = 1 # 예시 입력 크기 (변경 가능)
+# output_size = 10  # 예시 출력 크기 (변경 가능)
+#
+# # 모델 인스턴스 생성
+# model = TemperatureToCompositionPredictor(input_size=input_size, output_size=output_size)
+#
+# # 임의의 샘플 입력 데이터 생성 (배치 크기 1, 채널 1, 입력 길이 input_size)
+# sample_input = torch.randn(1, 1, input_size)
+#
+# # 모델의 출력 계산
+# output = model(sample_input)
+#
+# # 모델의 계산 그래프 시각화
+# graph = make_dot(output, params=dict(model.named_parameters()))
+# graph.render("GCMS", format="png")  # PNG 파일로 저장
+#

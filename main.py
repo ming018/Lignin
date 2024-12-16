@@ -14,6 +14,7 @@ from TGA_dl import process_TGA_data, load_model, prepare_dataloader, train_model
 from FTIR_dl import preprocess_FTIR_data, train_and_evaluate, predict_and_plot
 from GCMS_dl import train_and_evaluate as GCMS_train_and_evaluate
 from models.ByproductPredictorCNN import ByproductDataset, ByproductPredictorCNN
+from models.MoE import MVAE_MoE
 from models.TemperatureToCompositionPredictor import TemperatureToCompositionPredictor
 from models.TemperatureToDataPredictorCNN import TemperatureToDataPredictorCNN
 from models.ml import compare_models
@@ -69,6 +70,11 @@ def FTIR_augmentation(FTIR_data, target_temp, device):
     temperature_data = np.array([250, 300, 350, 400], dtype=np.float32).reshape(-1, 1)
     output_data = preprocessed_data[0][:, 1, :]  # (4, 3476) 형태의 데이터
 
+    test = []
+
+    for i in FTIR_data:
+        test.append(i[1])
+
     compare_models(np.asarray(output_data), target_temp[0], True)
 
     # PyTorch 텐서로 변환
@@ -89,7 +95,8 @@ def FTIR_augmentation(FTIR_data, target_temp, device):
 
     # 새로운 온도에서의 예측 및 시각화
     new_temperatures = torch.tensor([target_temp], dtype=torch.float32).unsqueeze(1).to(device)
-    predict_and_plot(model, preprocessed_data, new_temperatures)
+    predict_ftir = predict_and_plot(model, preprocessed_data, new_temperatures)
+
     return new_temperatures
 
 def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='pth/tga.pth', train_new_model=True):
@@ -123,7 +130,7 @@ def TGA_augmentation(TGA_data, cat, target_temp, device, model_path='pth/tga.pth
 
 if __name__ == '__main__' :
 
-    flag = True
+    flag = False
 
     '''
     True  : Augmentation
@@ -131,7 +138,7 @@ if __name__ == '__main__' :
     '''
 
     # GPU 유무에 따라서 cuda or cpu 설정
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device('cuda' if torch.cuda.is_available() else 'mps')
 
     if flag:
         condition_data, TGA_data, FTIR_data, GCMS_data = data_loader.load_data(data_loader.ROOT_DIR)
@@ -145,9 +152,9 @@ if __name__ == '__main__' :
         # target_temp = int(input('온도 입력 250 ~ 400'))
         target_temp = [275]
 
-        TGA_bool = True
-        FTIR_bool = True
-        GCMS_bool = True
+        TGA_bool = False
+        FTIR_bool = False
+        GCMS_bool = False
 
         if TGA_bool :
             augmented_TGA_data = TGA_augmentation(TGA_data, cat, target_temp, device)
@@ -202,119 +209,6 @@ if __name__ == '__main__' :
 
         print("A")
 
-
-        # 첫 번째 입력에 대한 인코더 정의
-        class Encoder1(nn.Module):
-            def __init__(self, input_dim, latent_dim):
-                super(Encoder1, self).__init__()
-                self.fc = nn.Sequential(
-                    nn.Linear(input_dim, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, latent_dim * 2)  # mu와 log_var를 위해 2배 크기
-                )
-
-            def forward(self, x):
-                h = self.fc(x)
-                mu, log_var = h.chunk(2, dim=-1)
-                return mu, log_var
-
-
-        # 두 번째 입력에 대한 인코더 정의
-        class Encoder2(nn.Module):
-            def __init__(self, input_dim, latent_dim):
-                super(Encoder2, self).__init__()
-                self.fc = nn.Sequential(
-                    nn.Linear(input_dim, 1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, latent_dim * 2)
-                )
-
-            def forward(self, x):
-                h = self.fc(x)
-                mu, log_var = h.chunk(2, dim=-1)
-                return mu, log_var
-
-
-        # 디코더 정의
-        class Decoder(nn.Module):
-            def __init__(self, latent_dim, output_dim):
-                super(Decoder, self).__init__()
-                self.fc = nn.Sequential(
-                    nn.Linear(latent_dim, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, output_dim)
-                )
-
-            def forward(self, z):
-                return self.fc(z)
-
-
-        # 전문가 네트워크 정의
-        class Expert(nn.Module):
-            def __init__(self, latent_dim, output_dim):
-                super(Expert, self).__init__()
-                self.fc = nn.Sequential(
-                    nn.Linear(latent_dim, 256),
-                    nn.ReLU(),
-                    nn.Linear(256, output_dim)
-                )
-
-            def forward(self, z):
-                return self.fc(z)
-
-
-        # 게이트 네트워크 정의
-        class GatingNetwork(nn.Module):
-            def __init__(self, latent_dim, num_experts):
-                super(GatingNetwork, self).__init__()
-                self.fc = nn.Sequential(
-                    nn.Linear(latent_dim, num_experts)
-                )
-
-            def forward(self, z):
-                return self.fc(z)
-
-
-        # MVAE + MoE 모델 정의
-        class MVAE_MoE(nn.Module):
-            def __init__(self, input_dim1, input_dim2, latent_dim, output_dim, num_experts):
-                super(MVAE_MoE, self).__init__()
-                self.encoder1 = Encoder1(input_dim1, latent_dim)
-                self.encoder2 = Encoder2(input_dim2, latent_dim)
-                self.decoder1 = Decoder(latent_dim, input_dim1)
-                self.decoder2 = Decoder(latent_dim, input_dim2)
-                self.experts = nn.ModuleList([Expert(latent_dim, output_dim) for _ in range(num_experts)])
-                self.gating_network = GatingNetwork(latent_dim, num_experts)
-
-            def reparameterize(self, mu, log_var):
-                std = torch.exp(0.5 * log_var)
-                eps = torch.randn_like(std)
-                return mu + eps * std
-
-            def forward(self, x1, x2):
-                # 인코딩
-                mu1, log_var1 = self.encoder1(x1)
-                mu2, log_var2 = self.encoder2(x2)
-
-                # 평균 결합
-                mu = (mu1 + mu2) / 2
-                log_var = (log_var1 + log_var2) / 2
-
-                # 잠재 벡터 샘플링
-                z = self.reparameterize(mu, log_var)
-
-                # 재구성
-                recon_x1 = self.decoder1(z)
-                recon_x2 = self.decoder2(z)
-
-                # 전문가 네트워크 예측
-                expert_outputs = torch.stack([expert(z) for expert in self.experts], dim=1)
-                gating_weights = torch.softmax(self.gating_network(z), dim=1)
-                output = torch.sum(gating_weights.unsqueeze(2) * expert_outputs, dim=1)
-
-                return recon_x1, recon_x2, output, mu, log_var
-
-
         # 손실 함수 정의
         def loss_function(recon_x1, x1, recon_x2, x2, output, target, mu, log_var):
             recon_loss1 = nn.MSELoss()(recon_x1, x1)
@@ -323,6 +217,8 @@ if __name__ == '__main__' :
             pred_loss = nn.MSELoss()(output, target)
             return recon_loss1 + recon_loss2 + kl_loss + pred_loss
 
+
+        train = False
 
         # 모델 초기화
         input_dim1 = 761
@@ -333,25 +229,56 @@ if __name__ == '__main__' :
 
         model = MVAE_MoE(input_dim1, input_dim2, latent_dim, output_dim, num_experts).to(device)
         criterion = nn.MSELoss()
-        optimizer = optim.Adam(model.parameters(), lr=0.0005)
-        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=75, gamma=0.1)
 
-        # TGA_data = TGA_data.unsqueeze(1).to('cuda')
-        # FTIR_data = FTIR_data.unsqueeze(1).to('cuda')
-        # GCMS_data = GCMS_data.unsqueeze(1).to('cuda')
+        # print(pd.DataFrame(GCMS_data.detach().cpu().numpy())[0].mean())
 
-        epochs = 10000
-        for epoch in range(epochs):
-            model.train()
+        if train :
 
-            # 역전파 (backward) 및 최적화
-            optimizer.zero_grad()
-            recon_x1, recon_x2, output, mu, log_var = model(TGA_data, FTIR_data)
-            loss = loss_function(recon_x1, TGA_data, recon_x2, FTIR_data, output, GCMS_data, mu, log_var)
-            loss.backward(retain_graph=True)
-            optimizer.step()
-            scheduler.step(loss)
+            # TGA_data = TGA_data.unsqueeze(1).to('cuda')
+            # FTIR_data = FTIR_data.unsqueeze(1).to('cuda')
+            # GCMS_data = GCMS_data.unsqueeze(1).to('cuda')
 
-            if (epoch + 1) % 50 == 0:
+            epochs = 100
+            for epoch in range(epochs):
+                model.train()
+
+                # 역전파 (backward) 및 최적화
+                optimizer.zero_grad()
+                recon_x1, recon_x2, output, mu, log_var = model(TGA_data, FTIR_data)
+                loss = loss_function(recon_x1, TGA_data, recon_x2, FTIR_data, output, GCMS_data, mu, log_var)
+                loss.backward(retain_graph=True)
+                optimizer.step()
+                scheduler.step()
+
                 print(f"Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}")
+
+            # 모델 저장
+            model_path = 'pth/MoE_012.pth'
+            torch.save(model.state_dict(), model_path)
+            print(f"Model saved to {model_path}")
+        else :
+
+            MoE_path = 'pth/MoE_012.pth'
+            model.load_state_dict(torch.load(MoE_path, weights_only=True))
+            model.eval()
+
+            # TGA_data = TGA_data.unsqueeze(1).to(device)
+            # FTIR_data = FTIR_data.unsqueeze(1).to(device)
+            # GCMS_data = GCMS_data.unsqueeze(1).to(device)
+
+            # TGA_data와 FTIR_data는 이전에 처리된 입력 데이터여야 함
+            TGA_data = TGA_data.to(device)
+            FTIR_data = FTIR_data.to(device)
+
+            # 모델 예측 수행
+            with torch.no_grad():  # 평가 시에는 gradient를 계산하지 않음
+                recon_x1, recon_x2, output, mu, log_var = model(TGA_data, FTIR_data)
+
+            # 예측 결과 출력
+            print("Reconstructed TGA Data:", recon_x1)
+            print("Reconstructed FTIR Data:", recon_x2)
+            print("Predicted GCMS Data:", output)
+            print()
 
